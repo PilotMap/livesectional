@@ -102,7 +102,7 @@ version = admin.version                 #Software version
 loglevel = 1#config.loglevel
 loglevels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
 logzero.loglevel(loglevels[loglevel])   #Choices in order; DEBUG, INFO, WARNING, ERROR
-logzero.logfile("/NeoSectional/logfile.log", maxBytes=1e6, backupCount=1)
+logzero.logfile("./logfile.log", maxBytes=1e6, backupCount=1)
 logger.info("\n\nStartup of metar-v4.py Script, Version " + version)
 logger.info("Log Level Set To: " + str(loglevels[loglevel]))
 
@@ -309,7 +309,7 @@ LED_BRIGHTNESS = bright_value           #255    #starting brightness. It will be
 
 #Setup paths for restart on change routine. Routine from;
 #https://blog.petrzemek.net/2014/03/23/restarting-a-python-script-within-itself
-LOCAL_CONFIG_FILE_PATH = '/NeoSectional/config.py'
+LOCAL_CONFIG_FILE_PATH = './config.py'
 WATCHED_FILES = [LOCAL_CONFIG_FILE_PATH, __file__]
 WATCHED_FILES_MTIMES = [(f, getmtime(f)) for f in WATCHED_FILES]
 logger.info('Watching ' + LOCAL_CONFIG_FILE_PATH + ' For Change')
@@ -324,7 +324,7 @@ delay_time = 10                         #Number of seconds to delay before retry
 temp_lights_on = 0                      #Set flag for next round if sleep timer is interrupted by button push.
 
 #MOS Data Settings
-mos_filepath = '/NeoSectional/GFSMAV'      #location of the downloaded local MOS file.
+mos_filepath = './GFSMAV'      #location of the downloaded local MOS file.
 categories = ['HR', 'CLD', 'WDR', 'WSP', 'P06', 'T06', 'POZ', 'POS', 'TYP', 'CIG','VIS','OBV']
 obv_wx = {'N': 'None', 'HZ': 'HZ','BR': 'RA','FG': 'FG','BL': 'HZ'} #Decode from MOS to TAF/METAR
 typ_wx = {'S': 'SN','Z': 'FZRA','R': 'RA'}      #Decode from MOS to TAF/METAR
@@ -555,12 +555,12 @@ while (outerloop):
 
     #Call script and execute desired wipe(s) while data is being updated.
     if usewipes ==  1 and toggle_sw != -1:
-        exec(compile(open("/NeoSectional/wipes-v4.py", "rb").read(), "/NeoSectional/wipes-v4.py", 'exec')) #Get latest ip's to display in editors
+        exec(compile(open("./wipes-v4.py", "rb").read(), "./wipes-v4.py", 'exec')) #Get latest ip's to display in editors
         logger.info("Calling wipes script")
 
     #read airports file - read each time weather is updated in case a change to "airports" file was made while script was running.
     try:
-        with open('/NeoSectional/airports') as f:
+        with open('./airports') as f:
             airports = f.readlines()
     except IOError as error:
         logger.error('Airports file could not be loaded.')
@@ -683,7 +683,7 @@ while (outerloop):
         #read hmdata file - read each time weather is updated in case a change to "airports" file was made while script was running.
         j = 0
         logger.info("Starting Heat Map")
-        with open('/NeoSectional/hmdata') as f:
+        with open('./hmdata') as f:
             for line in f:
                 (apid, visits) = line.split(' ')
                 apid = apid.strip()
@@ -714,7 +714,7 @@ while (outerloop):
                 if getmtime(f) != mtime:
                     logger.info("Restarting from awake" + __file__ + " in 2 sec...")
                     time.sleep(2)
-                    os.execv(sys.executable, [sys.executable] +  [__file__]) #'/NeoSectional/metar-v4.py'])
+                    os.execv(sys.executable, [sys.executable] +  [__file__]) #'./metar-v4.py'])
 
             #Bright light will provide a low state (0) on GPIO. Dark light will provide a high state (1).
             #Full brightness will be used if no light sensor is installed.
@@ -1338,7 +1338,7 @@ while (outerloop):
             if getmtime(f) != mtime:
                 logger.info("Restarting from awake" + __file__ + " in 2 sec...")
                 time.sleep(2)
-                os.execv(sys.executable, [sys.executable] +  [__file__]) #'/NeoSectional/metar-v4.py'])
+                os.execv(sys.executable, [sys.executable] +  [__file__]) #'./metar-v4.py'])
 
         #Timer routine, used to turn off LED's at night if desired. Use 24 hour time in settings.
         if usetimer: #check to see if the user wants to use a timer.
