@@ -4,22 +4,15 @@
 
 import time
 import os
-import subprocess
 import re
-import logging
-import logzero                                  #had to manually install logzero. https://logzero.readthedocs.io/en/latest/
-from logzero import logger
+import subprocess
+
+
+from log import logger
 import config                                   #config.py holds user settings used by the various scripts
-import admin
+
 
 # Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
-version = admin.version                         #Software version
-loglevel = config.loglevel
-loglevels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
-logzero.loglevel(loglevels[loglevel])           #Choices in order; DEBUG, INFO, WARNING, ERROR
-logzero.logfile("/NeoSectional/logfile.log", maxBytes=1e6, backupCount=1)
-logger.info("\n\nStartup of check-display.py Script, Version " + version)
-logger.info("Log Level Set To: " + str(loglevels[loglevel]))
 
 #misc settings
 displayused = config.displayused                #0 = no, 1 = yes. If no, then only the metar.py script will be run. Otherwise both scripts will be threaded.
