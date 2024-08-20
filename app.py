@@ -3,6 +3,7 @@ import sys
 import wget
 import json
 import time
+import arrow
 import socket
 import shutil
 import logzero
@@ -26,7 +27,7 @@ from flask     import Flask, render_template, request, flash, redirect, send_fil
 # Local imports
 import admin
 import config
-#import scan_network
+import scan_network
 
 # Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
 map_name = admin.map_name
@@ -38,12 +39,14 @@ logzero.logfile("./logfile.log", maxBytes=1e6, backupCount=1)
 logger.info("\n\nStartup of metar-v4.py Script, Version " + version)
 logger.info("Log Level Set To: " + str(loglevels[loglevel]))
 
-airports_file  = './airports'
-airports_bkup  = './airports-bkup'
-settings_file  = './config.py'
-settings_bkup  = './config-bkup.py'
-heatmap_file   = './hmdata'
-local_ftp_file = './lsinfo.txt'
+
+PATH = '.'
+airports_file  = f'{PATH}/airports'
+airports_bkup  = f'{PATH}/airports-bkup'
+settings_file  = f'{PATH}/config.py'
+settings_bkup  = f'{PATH}/config-bkup.py'
+heatmap_file   = f'{PATH}/hmdata'
+local_ftp_file = f'{PATH}/lsinfo.txt'
 
 settings    = {}
 airports    = []
@@ -64,12 +67,12 @@ min_lon     = ''
 max_api_airports = 300
 
 # Settings for web based file updating
-src         = './'                           # Main directory, /NeoSectional
-dest        = './backup/previousversion'                     # Directory to store currently run version of software
+src         = f'{PATH}/'                        # Main directory, /NeoSectional
+dest        = f'{PATH}/backup/previousversion'  # Directory to store currently run version of software
 verfilename = 'version.py'                      # Version Filename
 zipfilename = 'ls.zip'                          # File that holds the names of all the files that need to be updated
 source_path = 'http://www.livesectional.com/liveupdate/neoupdate/'
-target_path = './'
+target_path = f'{PATH}/'
 
 update_available = 0                            # 0 = No update available, 1 = Yes update available
 update_vers = "4.000"                           # initiate variable
@@ -84,7 +87,6 @@ led_map_url = "https://aviationweather.gov/api/data/metar?format=xml&hours=2.5&i
 
 now = datetime.now()
 timestr = (now.strftime("%H:%M:%S - %b %d, %Y"))
-logger.debug(timestr)
 delay_time = 5                  # Delay in seconds between checking for internet availablility.
 num = 0                         # initialize num for airports editor
 ipadd = ''
@@ -99,6 +101,7 @@ LED_INVERT     = False          # True to invert the signal (when using NPN tran
 LED_CHANNEL    = 0              # set to '1' for GPIOs 13, 19, 41, 45 or 53
 LED_STRIP      = "ws2812"
 Color = ()
+
 class Fake_Adafruit_NeoPixel:
 
     def __init__(self,led_count,
@@ -112,6 +115,8 @@ class Fake_Adafruit_NeoPixel:
         return
 
     def setPixelColor(self, i, color):
+        data = dict(led=1, color=rgb2hex(color))
+        requests.post('http:0.0.0.0:8081',data=data)
         return None
 
     def begin(self):
@@ -155,7 +160,7 @@ def map1():
     # other mapping code (e.g. lines, markers etc.)
     folium.LayerControl().add_to(folium_map)
 
-    folium_map.save('./NeoSectional/templates/map.html')
+    folium_map.save(f'{PATH}/NeoSectional/templates/map.html')
     return render_template('mapedit.html', title='Map', num = 5)
 
 
@@ -204,7 +209,7 @@ def stream_log():
 @app.route('/stream_log1', methods=["GET", "POST"])
 def stream_log1():
     def generate():
-        with open('./logfile.log') as f:
+        with open(f'{PATH}/logfile.log') as f:
             while True:
                 yield "{}\n".format(f.read())
                 time.sleep(1)
@@ -409,7 +414,7 @@ def led_map():
     folium.TileLayer('CartoDB positron', name='CartoDB Positron').add_to(folium_map)
     folium.LayerControl().add_to(folium_map)
 
-    folium_map.save('./templates/map.html')
+    folium_map.save(f'{PATH}/templates/map.html')
     logger.info("Opening led_map in separate window")
     return render_template('led_map.html', **templateData)
 
@@ -526,7 +531,7 @@ def tzset():
 def yindex():
     def inner():
         proc = subprocess.Popen(
-            ['.//info-v4.py'],             # 'dmesg' call something with a lot of output so we can see it
+            [f'{PATH}//info-v4.py'],             # 'dmesg' call something with a lot of output so we can see it
             shell=True,
             stdout=subprocess.PIPE
         )
@@ -696,13 +701,13 @@ def importhm():
 
     if 'file' not in request.files:
         flash('No File Selected')
-        return redirect('./hmedit')
+        return redirect(f'{PATH}/hmedit')
 
     file = request.files['file']
 
     if file.filename == '':
         flash('No File Selected')
-        return redirect('./hmedit')
+        return redirect(f'{PATH}/hmedit')
 
     filedata = file.read()
     tmphmdata = bytes.decode(filedata)
@@ -952,13 +957,13 @@ def importap():
 
     if 'file' not in request.files:
         flash('No File Selected')
-        return redirect('./apedit')
+        return redirect(f'{PATH}/apedit')
 
     file = request.files['file']
 
     if file.filename == '':
         flash('No File Selected')
-        return redirect('./apedit')
+        return redirect(f'{PATH}/apedit')
 
     filedata = file.read()
     fdata = bytes.decode(filedata)
@@ -1170,8 +1175,7 @@ def handle_post_request():
         return redirect(temp[3])  # temp[3] holds name of page that called this route.
 
 
-# Routes for LSREMOTE - Allow Mobile Device Remote. Thank Lance
-# @app.route('/', methods=["GET", "POST"])
+# Routes for LSREMOTE - Allow Mobile Device Remote. Thank
 @app.route('/lsremote', methods=["GET", "POST"])
 def confeditmobile():
     logger.info("Opening lsremote.html")
@@ -1240,11 +1244,11 @@ def confeditmobile():
         'machines': machines,
 
         # Color Picker Variables to pass
-        'color_vfr_hex': color_vfr_hex,
-        'color_mvfr_hex': color_mvfr_hex,
-        'color_ifr_hex': color_ifr_hex,
-        'color_lifr_hex': color_lifr_hex,
-        'color_nowx_hex': color_nowx_hex,
+        'color_vfr_hex'  : color_vfr_hex,
+        'color_mvfr_hex' : color_mvfr_hex,
+        'color_ifr_hex'  : color_ifr_hex,
+        'color_lifr_hex' : color_lifr_hex,
+        'color_nowx_hex' : color_nowx_hex,
         'color_black_hex': color_black_hex,
         'color_lghtn_hex': color_lghtn_hex,
         'color_snow1_hex': color_snow1_hex,
@@ -1295,13 +1299,13 @@ def importconf():
 
     if 'file' not in request.files:
         flash('No File Selected')
-        return redirect('./confedit')
+        return redirect(f'{PATH}/confedit')
 
     file = request.files['file']
 
     if file.filename == '':
         flash('No File Selected')
-        return redirect('./confedit')
+        return redirect(f'{PATH}/confedit')
 
     filedata = file.read()
     fdata = bytes.decode(filedata)
@@ -1321,7 +1325,7 @@ def importconf():
 
     logger.debug(settings)
     flash('Config File Imported - Click "Save Config File" to save')
-    return redirect('./confedit')
+    return redirect(f'{PATH}/confedit')
 
 
 # Restore config.py settings
@@ -1329,7 +1333,7 @@ def importconf():
 def restoreconf():
     logger.info("Restoring Config Settings")
     readconf(settings_file)  # read config file
-    return redirect('./confedit')
+    return redirect(f'{PATH}/confedit')
 
 
 # Loads the profile into the Settings Editor, but does not save it.
@@ -1342,7 +1346,7 @@ def profiles():
     print(req_profile)
     print(config_profiles)
     tmp_profile = config_profiles[req_profile]
-    stored_profile = './/profiles/' + tmp_profile
+    stored_profile = f'{PATH}//profiles/' + tmp_profile
 
     flash(tmp_profile + ' Profile Loaded. Review And Tweak The Settings As Desired. Must Be Saved!')
     readconf(stored_profile)    # read profile config file
@@ -1389,10 +1393,12 @@ def shutdown1():
 
     temp = url.split('/')
     logger.info("Shutoff Map from " + url)
-    os.system("ps -ef | grep './metar-display-v4.py' | awk '{print $2}' | xargs sudo kill")
-    os.system("ps -ef | grep './metar-v4.py' | awk '{print $2}' | xargs sudo kill")
-    os.system("ps -ef | grep './check-display.py' | awk '{print $2}' | xargs sudo kill")
+    """
+    os.system(f"ps -ef | grep {PATH}/metar-display-v4.py' | awk '/{print $2/}' | xargs sudo kill")
+    os.system(f"ps -ef | grep {PATH}/metar-v4.py' | awk '{print $2}' | xargs sudo kill")
+    os.system(f"ps -ef | grep {PATH}/check-display.py' | awk '{print $2}' | xargs sudo kill")
     os.system('sudo python3 ./shutoff.py &')
+    """
     flash("Map Turned Off ")
     time.sleep(1)
     return redirect(temp[3])  # temp[3] holds name of page that called this route.
@@ -1640,8 +1646,6 @@ def get_apinfo():
     global orig_apurl
     global apinfo_dict
 
-
-    #print (max_api_airports)
     airports_count = len(airports)
 
     print ("Number of airports in the list: ", airports_count)
@@ -1650,7 +1654,7 @@ def get_apinfo():
     tmp_start = 0
     tmp_end = max_api_airports
 
-    while (tmp_ap >= 0):
+    while tmp_ap >= 0:
         print ("tmp_start: ", tmp_start)
         print ("tmp_ap: ", tmp_ap)
         print ("tmp_end: ", tmp_end)
@@ -1711,6 +1715,7 @@ def get_apinfo():
     file.write(content2)
     file.close()
 
+
 # rgb and hex routines
 def rgb2hex(rgb):
     logger.debug(rgb)
@@ -1718,10 +1723,12 @@ def rgb2hex(rgb):
     hex = '#%02x%02x%02x' % (r, g, b)
     return hex
 
+
 def hex2rgb(value):  # from; https://www.codespeedy.com/convert-rgb-to-hex-color-code-in-python/
     value = value.lstrip('#')
     lv = len(value)
     return tuple(int(value[i:i+lv//3], 16) for i in range(0, lv, lv//3))
+
 
 # functions for updating software via web
 def delfile(filename):
@@ -1731,20 +1738,24 @@ def delfile(filename):
     except:
         logger.error("Error while deleting file ", target_path + filename)
 
+
 def unzipfile(filename):
     with zipfile.ZipFile(target_path + filename, 'r') as zip_ref:
         zip_ref.extractall(target_path)
     logger.info('Unzipped ls.zip')
+
 
 def copytoprevdir(src, dest):
     shutil.rmtree(dest)
     shutil.copytree(src,dest)
     logger.info('Copied current version to ../previousversion')
 
+
 def dlftpfile(url, filename):
     wget.download(url, filename)
     print('\n')
     logger.info('Downloaded ' + filename + ' from neoupdate')
+
 
 def updatefiles():
     copytoprevdir(src, dest)                       # This copies current version to ../previousversion before updating files.
@@ -1752,6 +1763,7 @@ def updatefiles():
     unzipfile(zipfilename)                         # Unzip files and overwrite existing older files
     delfile(zipfilename)                           # Delete zip file
     logger.info('Updated New Files')
+
 
 def checkforupdate():
     global update_vers
@@ -1792,6 +1804,7 @@ def testupdate():
         logger.info('Newer Image Available for Download')
         update_available = 2                    # Newer image available
 
+
 # May be used to display user location on map in user interface. - TESTING Not working consistently, not used
 def get_loc():
     loc_data = {}
@@ -1809,43 +1822,14 @@ def get_loc():
     loc[ip_data] = loc_data
 
 
-# executed code
-if __name__ == '__main__':
+def setup():
+    """
+    Set up everything.
+    """
     internet_tries = 10 # number of times to try to access the internet before quitting the script.
-    internet_test = True
 
     # Display active IP address for builder to open up web browser to configure.
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    while True:  # check internet availability and retry if necessary. If house power outage, map may boot quicker than router.
-        try:
-            s.connect(("8.8.8.8", 80))
-            logger.info('Internet Available')
-            break
-
-        except:
-            logger.warning('Internet NOT Available')
-            time.sleep(delay_time)
-            internet_tries -= 1
-            if internet_tries <= 0:
-                internet_test = False
-                print("\n\033[1;32;40mNo Internet - Type 'ctrl-c' then 'sudo raspi-config' to setup WiFi\033[0;0m\n")
-                sys.exit()
-                break
-            pass
-
-    ipadd = s.getsockname()[0]  # get IP Address
-    logger.info('Startup - Current RPI IP Address = ' + ipadd)
-
-    """
-    # Get Current Time Zone
-    currtzinfo = subprocess.run(['timedatectl', 'status'], stdout=subprocess.PIPE).stdout.decode('utf-8')
-    tztemp = currtzinfo.split('\n')
-    current_timezone = tztemp[3]
-    """
-
-    # Check to see if an newer version of the software is available, and update if user so chooses
-    # testupdate() # temp fix for server error. More to come
 
     # Get system info and display
     python_ver = ("Python Version = " + sys.version)
@@ -1883,4 +1867,9 @@ if __name__ == '__main__':
 
     logger.info("IP Address = " + s.getsockname()[0])
     logger.info("Starting Flask Session")
+
+
+if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
+
+

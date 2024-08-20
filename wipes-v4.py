@@ -710,7 +710,7 @@ if __name__ == '__main__':
               logger.warning('FAA Data is Not Available')
               logger.warning(url + stationList)
               logger.warning(result)
-              time.sleep(delay_time)
+              time.sleep(10)
               pass
 
          stationList = ''
@@ -737,7 +737,7 @@ if __name__ == '__main__':
         except:
             logger.warning('FAA Data is Not Available')
             logger.warning(url)
-            time.sleep(delay_time)
+            time.sleep(10)
             pass
  
     c = ['<x>']

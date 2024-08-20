@@ -1,0 +1,9 @@
+[Unit]
+Description=Web App Service
+
+[Service]
+ExecStart=uwsgi -i /usr/local/src/uwsgi.ini
+SyslogIdentifier=SRV_APPS
+
+[Install]
+WantedBy=multi-user.target
