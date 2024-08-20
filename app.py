@@ -27,7 +27,7 @@ from flask     import Flask, render_template, request, flash, redirect, send_fil
 # Local imports
 import admin
 import config
-import scan_network
+#import scan_network
 
 # Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
 map_name = admin.map_name
@@ -1860,10 +1860,12 @@ def setup():
     get_led_map_info() # get airport location in lat lon and flight category
     readhmdata(heatmap_file)  # get Heat Map data
 
+    """
     if admin.use_scan_network == 1:
         print("One Moment - Scanning for Other LiveSectional Maps on Local Network")
         machines = scan_network.scan_network()
         print(machines) # Debug
+    """
 
     logger.info("IP Address = " + s.getsockname()[0])
     logger.info("Starting Flask Session")
