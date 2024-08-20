@@ -662,7 +662,7 @@ def rabbit(color1, color2, wait):
 #Start of executed code
 if __name__ == '__main__':
     #read airports file - read each time weather is updated in case a change to "airports" file was made while script was running.
-    with open("/NeoSectional/airports") as f:
+    with open("./airports") as f:
         airports = f.readlines()
     airports = [x.strip() for x in airports]
 

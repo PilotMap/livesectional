@@ -91,25 +91,15 @@ from os.path import getmtime
 import RPi.GPIO as GPIO
 import collections
 import re
-import logging
-import logzero #had to manually install logzero. https://logzero.readthedocs.io/en/latest/
-from logzero import logger
-import config #Config.py holds user settings used by the various scripts
-import admin
 
-# Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
-version = admin.version                 #Software version
-loglevel = 1#config.loglevel
-loglevels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
-logzero.loglevel(loglevels[loglevel])   #Choices in order; DEBUG, INFO, WARNING, ERROR
-logzero.logfile("./logfile.log", maxBytes=1e6, backupCount=1)
-logger.info("\n\nStartup of metar-v4.py Script, Version " + version)
-logger.info("Log Level Set To: " + str(loglevels[loglevel]))
+import admin
+import config
+from log import logger
 
 #****************************************************************************
 #* User defined items to be set below - Make changes to config.py, not here *
 #****************************************************************************
-
+PATH = './'
 #list of pins that need to reverse the rgb_grb setting. To accommodate two different models of LED's are used.
 rev_rgb_grb = config.rev_rgb_grb        #[] #['1', '2', '3', '4', '5', '6', '7', '8']
 

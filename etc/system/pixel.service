@@ -2,9 +2,8 @@
 Description=FastAPI LED server
 
 [Service]
-ExecStart=python /usr/local/src/fastapi pixel_server.py
+ExecStart=fastapi run  /usr/local/src/pixel_server.py
 SyslogIdentifier=SRV_PIXELS
-Environment="PYTHONPATH=$PYTHONPATH:/home/pi/gardyn/bin"
 
 [Install]
 WantedBy=multi-user.target
