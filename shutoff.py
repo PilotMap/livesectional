@@ -4,9 +4,9 @@
 #     Added Logging capabilities which is stored in /NeoSectional/logfile.log
 
 #import libraries
-from rpi_ws281x import * #works with python 3.7. sudo pip3 install rpi_ws281x
+import requests
+
 import config   #holds user settings shared among scripts
-import admin
 
 #OLED libraries
 import smbus2
@@ -15,33 +15,14 @@ import Adafruit_SSD1306
 from PIL import Image
 from PIL import ImageDraw
 import RPi.GPIO as GPIO
-import logging
-import logzero
-from logzero import logger
 
-#LCD Libraries
-import RPLCD as RPLCD
 from RPLCD.gpio import CharLCD
 
-# Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
-version = admin.version                         #Software version
-loglevel = config.loglevel
-loglevels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
-logzero.loglevel(loglevels[loglevel])           #Choices in order; DEBUG, INFO, WARNING, ERROR
-logzero.logfile('/NeoSectional/logfile.log', maxBytes=1e6, backupCount=1)
-logger.info('\n\nStartup of shutoff.py Script, Version ' + version)
-logger.info("Log Level Set To: " + str(loglevels[loglevel]))
+from log import logger
 
 # LED strip configuration:
 LED_COUNT = config.LED_COUNT                    #from config.py. Number of LED pixels.
 
-LED_PIN        = 18                             #GPIO pin connected to the pixels (18 uses PWM!).
-LED_FREQ_HZ    = 800000                         #LED signal frequency in hertz (usually 800khz)
-LED_DMA        = 5                              #DMA channel to use for generating signal (try 5)#
-LED_BRIGHTNESS = 255                            #Set to 0 for darkest and 255 for brightest
-LED_INVERT     = False                          #True to invert the signal (when using NPN transistor level shift)
-LED_CHANNEL    = 0                              #set to '1' for GPIOs 13, 19, 41, 45 or 53
-LED_STRIP      = ws.WS2811_STRIP_GRB            #Strip type and colour ordering
 
 #Setup Display
 lcdused = config.lcddisplay                     #from config.py. 1 = Yes, 0 = No.
@@ -69,9 +50,7 @@ logger.info('Shutoff Settings Loaded')
 
 # Define functions
 def turnoff(strip):
-    for i in range(strip.numPixels()):
-        strip.setPixelColor(i, Color(0,0,0))
-    strip.show()
+    requests.post('http://localhost:8000', data=dict(fill=0x000000))
 
 #Functions for OLED display
 def tca_select(channel):
@@ -99,10 +78,8 @@ def clearoleddisplays():
 # Main program
 if __name__ == '__main__':
     # Create NeoPixel object with appropriate configuration.
-    strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, LED_STRIP)
     # Intialize the library (must be called once before other functions).
-    strip.begin()
-    turnoff(strip) 
+
     logger.info("LED's Have Been Turned Off")
 
     if oledused:                                #check to see if oleds are used

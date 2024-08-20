@@ -7,25 +7,14 @@ import flask
 import config
 import admin
 from datetime import datetime
-import logging
-import logzero
-from logzero import logger
-
-# Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
-version = admin.version          #Software version
-loglevel = config.loglevel
-loglevels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
-logzero.loglevel(loglevels[loglevel]) #Choices in order; DEBUG, INFO, WARNING, ERROR
-logzero.logfile("/NeoSectional/logfile.log", maxBytes=1e6, backupCount=1)
-logger.info("\n\nStartup of info-v4.py Script, Version " + version)
-logger.info("Log Level Set To: " + str(loglevels[loglevel]))
+from log import logger
 
 #Misc Settings
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect(("8.8.8.8", 80))
 now = datetime.now()
 timestr = (now.strftime("%H:%M:%S - %b %d, %Y"))
-mos_filepath = '/NeoSectional/GFSMAV'      #location of the downloaded local MOS file.
+mos_filepath = './GFSMAV'      #location of the downloaded local MOS file.
 
 #Functions
 def get_mos_date():
