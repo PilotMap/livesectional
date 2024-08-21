@@ -1828,7 +1828,11 @@ def setup():
     logger.info("IP Address = " + s.getsockname()[0])
     logger.info("Starting Flask Session")
 
-
+"""
+This code use to be in __main__. It needs to be run outside of main because with a uwsgi server, main never gets
+called
+"""
+setup()
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
 
