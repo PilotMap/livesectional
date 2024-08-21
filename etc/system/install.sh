@@ -1,15 +1,15 @@
 set -x
 
-cp /usr/local/src/pixel.service /etc/systemd/system/
+cp pixel.service /etc/systemd/system/
 chmod 644 /etc/systemd/system/pixel.service
 
-cp /usr/local/src/app.service /etc/systemd/system/
+cp app.service /etc/systemd/system/
 chmod 644 /etc/systemd/system/app.service
 
-cp /usr/local/src/metar-v4.service /etc/systemd/system/
+cp metar-v4.service /etc/systemd/system/
 chmod 644 /etc/systemd/system/metar-v4.service
 
-cp /usr/local/src/metar-display-v4.service /etc/systemd/system/
+cp metar-display-v4.service /etc/systemd/system/
 chmod 644 /etc/systemd/system/metar-display-v4.service
 
 systemctl daemon-reload

@@ -1,4 +1,4 @@
-
+import json
 import uvicorn
 
 from fastapi    import FastAPI, Query
@@ -21,10 +21,11 @@ strip.begin()
 app = FastAPI()
 
 @app.post("/set")
-def set_led(led: int, color:str):
+def set_led(led: int, color:str, show:bool | None=True):
     rgb = int(color,16)
     strip.setPixelColor(led, rgb)
-    strip.show()
+    if show:
+        strip.show()
     return {"status":"True"}
 
 @app.post("/fill")
@@ -33,11 +34,24 @@ def fill_leds(color:str):
     for i in range(strip.numPixels()):
         strip.setPixelColor(i, rgb)
     strip.show()
-    return {"status":"True"}
+    return
+
+@app.post("/show")
+def show_leds():
+    strip.show()
+    return
+
+@app.post("/pattern")
+def pattern(leds:str):
+    leds = json.loads(leds)
+    for l in range(len(leds)):
+        rgb = int(leds[l])
+        strip.setPixelColor(l, rgb)
+    strip.show()
 
 @app.get("/")
 def pixel_number():
-    return {'pixels':strip.numPixels()}
+    return {'pixels':strip.numPixels}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

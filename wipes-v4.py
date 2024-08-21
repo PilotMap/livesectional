@@ -1,110 +1,71 @@
-#wipes-v4.py - by Mark Harris.
-#    Updated to work with New FAA API: 10-2023. Thank you to user Marty for all the hardwork.
-#    Updated to work with Python 3.7
-#    Custom wipes using airport's lat/lon so any map should be able to utilize these custom wipes.
-#    This is run from metar-v4.py if builder would like to use a wipe when weather is updated
-#    Includes the following patterns;
-#       Rainbow
-#       Square
-#       Circle
-#       Radar
-#       Up/Down and Side to Side
-#       All One Color
-#       Fader
-#       Shuffle
-#       Morse Code
-#       Rabbit Chase
-#       Checkerbox
-#
-#    Fixed wipes that turned on NULL and LGND Leds
-#    Fixed dimming feature when a wipe is executed
-#    Fixed bug whereby lat/lon was miscalculated for certain wipes.
-#    Thank you Daniel from pilotmap.co for the change the routine that handles maps with more than 300 airports.
 
-#Import needed libraries
-import urllib.request, urllib.error, urllib.parse
-import xml.etree.ElementTree as ET
+import json
 import time
-from rpi_ws281x import *                        #works with python 3.7. sudo pip3 install rpi_ws281x
 import math
 import random
-import logging
-import logzero                                  #had to manually install logzero. https://logzero.readthedocs.io/en/latest/
-from logzero import logger
 import config
-import admin
+import requests
+import urllib.request
 
-# Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
-version = admin.version                         #Software version
-loglevel = config.loglevel
-loglevels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
-logzero.loglevel(loglevels[loglevel])           #Choices in order; DEBUG, INFO, WARNING, ERROR
-logzero.logfile("/NeoSectional/logfile.log", maxBytes=1e6, backupCount=1)
-logger.info("\n\nStartup of wipes-v4.py Script, Version " + version)
-logger.info("Log Level Set To: " + str(loglevels[loglevel]))
+import xml.etree.ElementTree as ET
+
+from log import logger
 
 #Setup for IC238 Light Sensor for LED Dimming, does not need to be commented out if sensor is not used, map will remain at full brightness.
 #For more info on the sensor visit; http://www.uugear.com/portfolio/using-light-sensor-module-with-raspberry-pi/
+'''
 import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BCM)  #set mode to BCM and use BCM pin numbering, rather than BOARD pin numbering.
 GPIO.setup(4, GPIO.IN)  #set pin 4 as input for light sensor, if one is used. If no sensor used board remains at high brightness always.
 GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 22 to momentary push button to force FAA Weather Data update if button is used.
-
-#LED strip configuration YOU MUST CHANGE LED_COUNT VALUE TO MATCH YOUR SETUP:
-LED_COUNT      = config.LED_COUNT               #Number of LED pixels. Change this value to match the number of LED's being used on map
-LED_PIN        = 18                             #GPIO pin connected to the pixels (18 uses PWM!).
-LED_FREQ_HZ    = 800000                         #LED signal frequency in hertz (usually 800khz)
-LED_DMA        = 5                              #DMA channel to use for generating signal (try 5)
-LED_INVERT     = False                          #True to invert the signal (when using NPN transistor level shift)
-LED_CHANNEL    = 0                              #set to '1' for GPIOs 13, 19, 41, 45 or 53
-LED_STRIP      = ws.WS2811_STRIP_GRB            #Strip type and color ordering
-LED_BRIGHTNESS = config.bright_value            #starting brightness. It will be changed below.
-
+'''
 #Misc settings
-rgb_grb = config.rgb_grb #1 = RGB color codes. 0 = GRB color codes. Populate color codes below with normal RGB codes and script will change it as necessary
-metar_age = config.metar_age                    #age of metar to retrieve
-wait = config.wait                              #wait time in seconds. .01 typical
-rev_rgb_grb = config.rev_rgb_grb                #list of pins whose color code needs to be reversed
-morse_msg = config.morse_msg
+rgb_grb     = config.rgb_grb                    # 1 = RGB color codes. 0 = GRB color codes. Populate color codes below with normal RGB codes and script will change it as necessary
+metar_age   = config.metar_age                  # age of metar to retrieve
+wait        = config.wait                       # wait time in seconds. .01 typical
+rev_rgb_grb = config.rev_rgb_grb                # list of pins whose color code needs to be reversed
+morse_msg   = config.morse_msg
 
 #Wipe number of times to execute a particular wipe
-num_radar = config.num_radar
+num_radar   = config.num_radar
 num_allsame = config.num_allsame
-num_circle = config.num_circle
-num_square = config.num_square
-num_updn = config.num_updn
+num_circle  = config.num_circle
+num_square  = config.num_square
+num_updn    = config.num_updn
 num_rainbow = config.num_rainbow
-num_fade = config.num_fade
+num_fade    = config.num_fade
 num_shuffle = config.num_shuffle
-num_morse = config.num_morse
-num_rabbit = config.num_rabbit
+num_morse   = config.num_morse
+num_rabbit  = config.num_rabbit
 num_checker = config.num_checker
 
 #Wipe Colors - either random colors or specify an on and off color for each wipe.
-rand = config.rand                              #0 = No, 1 = Yes, Randomize the colors used in wipes
-black_color = (0,0,0)
-radar_color1 = config.radar_color1
-radar_color2 = config.radar_color2
-allsame_color1 = config.allsame_color1
-allsame_color2 = config.allsame_color2
-circle_color1 = config.circle_color1
-circle_color2 = config.circle_color2
-square_color1 = config.square_color1
-square_color2 = config.square_color2
-updn_color1 = config.updn_color1
-updn_color2 = config.updn_color2
-fade_color1 = config.fade_color1
-shuffle_color1 = config.shuffle_color1
-shuffle_color2 = config.shuffle_color2
-morse_color1 = config.morse_color1
-morse_color2 = config.morse_color2
-rabbit_color1 = config.rabbit_color1
-rabbit_color2 = config.rabbit_color2
-checker_color1 = config.checker_color1
-checker_color2 = config.checker_color2
+rand            = config.rand                              #0 = No, 1 = Yes, Randomize the colors used in wipes
+black_color     = (0,0,0)
+radar_color1    = config.radar_color1
+radar_color2    = config.radar_color2
+allsame_color1  = config.allsame_color1
+allsame_color2  = config.allsame_color2
+circle_color1   = config.circle_color1
+circle_color2   = config.circle_color2
+square_color1   = config.square_color1
+square_color2   = config.square_color2
+updn_color1     = config.updn_color1
+updn_color2     = config.updn_color2
+fade_color1     = config.fade_color1
+shuffle_color1  = config.shuffle_color1
+shuffle_color2  = config.shuffle_color2
+morse_color1    = config.morse_color1
+morse_color2    = config.morse_color2
+rabbit_color1   = config.rabbit_color1
+rabbit_color2   = config.rabbit_color2
+checker_color1  = config.checker_color1
+checker_color2  = config.checker_color2
+
+delay_time = 5
 
 #List definitions
-ap_id = []                                      #Airport ID List. Used for screen wipes
+ap_id   = []                                    #Airport ID List. Used for screen wipes
 latlist = []                                    #Latitude of airport. Used for screen wipes
 lonlist = []                                    #Longitude of airport. Used for screen wipes
 
@@ -123,17 +84,34 @@ CODE = {'A':'.-', 'B':'-...', 'C':'-.-.', 'D':'-..', 'E':'.', 'F':'..-.', 'G':'-
         '0':'-----', ', ':'--..--', '.':'.-.-.-', '?':'..--..', '/':'-..-.', '-':'-....-', '(':'-.--.', ')':'-.--.-'
        }
 
-#Create an instance of NeoPixel
-strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, LED_STRIP)
-strip.begin()
+
 
 #Bright light will provide a low state (0) on GPIO. Dark light will provide a high state (1).
 #Full brightness will be used if no light sensor is installed.
+'''
 if GPIO.input(4) == 1:
     LED_BRIGHTNESS = config.dimmed_value
 else:
     LED_BRIGHTNESS = config.bright_value
-strip.setBrightness(LED_BRIGHTNESS)
+#strip.setBrightness(LED_BRIGHTNESS)
+'''
+
+URL = 'http://192.168.1.49:8000/'
+
+response = requests.get(URL)
+if response.ok:
+    number_of_pixels = json.loads(response.text).get('pixels',60)
+else:
+    number_of_pixels = 60
+
+def Color(r,g,b):
+    return "0x{:02x}{:02x}{:02x}".format(r,g,b)
+
+def setPixelColor(led, color):
+    requests.post(URL+'set',params=dict(led=led, color=color, show=False))
+
+def strip_show():
+    requests.post(URL+'show')
 
 #Functions
 #Rainbow Animation functions - taken from https://github.com/JJSilva/NeoSectional/blob/master/metar.py
@@ -148,15 +126,15 @@ def wheel(pos):
         pos -= 170
         return Color(0, pos * 3, 255 - pos * 3)
 
-def rainbowCycle(strip, iterations, wait=.1):
+def rainbowCycle(iterations, wait=.1):
     """Draw rainbow that uniformly distributes itself across all pixels."""
     for j in range(256*iterations):
-        for led_pin in range(strip.numPixels()):
+        for led_pin in range(number_of_pixels):
             if str(led_pin) in nullpins:        #exclude NULL and LGND pins from wipe
-                strip.setPixelColor(led_pin, Color(0,0,0))
+                setPixelColor(led_pin, Color(0,0,0))
             else:
-                strip.setPixelColor(led_pin, wheel((int(led_pin * 256 / strip.numPixels()) + j) & 255))
-        strip.show()
+                setPixelColor(led_pin, wheel((int(led_pin * 256 / number_of_pixels) + j) & 255))
+        strip_show()
         time.sleep(wait/100)
 
 #Generate random RGB color
@@ -225,13 +203,13 @@ def wipe(dict_name, start, end, step, color1, color2, wait_mult):
                 led_pin = ap_id.index(id)       #Assign the pin number to the led to turn on/off
 
                 color = rgbtogrb_wipes(led_pin, color1, rgb_grb)
-                strip.setPixelColor(led_pin, color)
-                strip.show()
+                setPixelColor(led_pin, color)
+                strip_show()
                 time.sleep(wait*wait_mult)
 
                 color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
-                strip.setPixelColor(led_pin, color)
-                strip.show()
+                setPixelColor(led_pin, color)
+                strip_show()
                 time.sleep(wait*wait_mult)
 
 
@@ -257,8 +235,8 @@ def circlewipe(centerlat, centerlon, color1, color2):
 #               print("Outside")
                 color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
 
-            strip.setPixelColor(led_pin, color)
-            strip.show()
+            setPixelColor(led_pin, color)
+            strip_show()
             time.sleep(wait)
         rad = rad + rad_inc
 
@@ -276,8 +254,8 @@ def circlewipe(centerlat, centerlon, color1, color2):
 #               print("Outside")
                 color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
 
-            strip.setPixelColor(led_pin, color)
-            strip.show()
+            setPixelColor(led_pin, color)
+            strip_show()
             time.sleep(wait)
 
     allonoff_wipes((0,0,0),.1)
@@ -325,12 +303,12 @@ def radarwipe(centerlat,centerlon,iter,color1,color2,sweepwidth=175,radius=50,an
             if (isInside(centerlon, centerlat, x1, y1, x2, y2, px1, py1)):
 #               print('Inside')
                 color = rgbtogrb_wipes(led_pin, color1, rgb_grb)
-                strip.setPixelColor(led_pin, color)
+                setPixelColor(led_pin, color)
             else:
                 color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
-                strip.setPixelColor(led_pin, color)
+                setPixelColor(led_pin, color)
 #               print('Not Inside')
-        strip.show()
+        strip_show()
         time.sleep(wait)
 
         # Increase the angle by angleinc radians
@@ -378,13 +356,13 @@ def squarewipe(minlon, minlat, maxlon, maxlat, iter, color1, color2, step=.5, wa
 #                    print('Not Inside') #debug
                     color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
 
-                strip.setPixelColor(led_pin, color)
+                setPixelColor(led_pin, color)
 
             inclat = round(inclat - step,2)
             declon = round(declon + step,2)
             declat = round(declat + step,2)
 
-            strip.show()
+            strip_show()
             time.sleep(wait*wait_mult)
 
         for inclon in frange(centlon, maxlon, step):
@@ -403,13 +381,13 @@ def squarewipe(minlon, minlat, maxlon, maxlat, iter, color1, color2, step=.5, wa
 #                   print('Not Inside') #debug
                     color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
 
-                strip.setPixelColor(led_pin, color)
+                setPixelColor(led_pin, color)
 
             inclat = round(inclat + step,2)
             declon = round(declon - step,2)
             declat = round(declat - step,2)
 
-            strip.show()
+            strip_show()
             time.sleep(wait*wait_mult)
 
 
@@ -445,47 +423,47 @@ def checkerwipe(minlon, minlat, maxlon, maxlat, iter, color1, color2, cwccw=0, w
                 else:
                     color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
 
-                strip.setPixelColor(led_pin, color)
-            strip.show()
+                setPixelColor(led_pin, color)
+            strip_show()
             time.sleep(wait*wait_mult)
     allonoff_wipes((0,0,0),.1)
 
 
 #Turn on or off all the lights using the same color.
 def allonoff_wipes(color1, wait):
-    for led_pin in range(strip.numPixels()):
+    for led_pin in range(number_of_pixels):
         if str(led_pin) in nullpins:            #exclude NULL and LGND pins from wipe
-            strip.setPixelColor(led_pin, Color(0,0,0))
+            setPixelColor(led_pin, Color(0,0,0))
         else:
             color = rgbtogrb_wipes(led_pin, color1, rgb_grb)
-            strip.setPixelColor(led_pin, color)
-    strip.show()
+            setPixelColor(led_pin, color)
+    strip_show()
     time.sleep(wait)
 
 #Fade LED's in and out using the same color.
 def fade(color1, wait):
     global LED_BRIGHTNESS
 
-    for val in range(0,LED_BRIGHTNESS,1):       #strip.numPixels()):
-        for led_pin in range(strip.numPixels()): #LED_BRIGHTNESS,0,-1):
+    for val in range(0,LED_BRIGHTNESS,1):       #number_of_pixels):
+        for led_pin in range(number_of_pixels): #LED_BRIGHTNESS,0,-1):
             if str(led_pin) in nullpins:        #exclude NULL and LGND pins from wipe
-                strip.setPixelColor(led_pin, Color(0,0,0))
+                setPixelColor(led_pin, Color(0,0,0))
             else:
                 color2 = dimwipe(color1,val)
                 color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
-                strip.setPixelColor(led_pin, color)
-        strip.show()
+                setPixelColor(led_pin, color)
+        strip_show()
         time.sleep(wait*.5)
 
-    for val in range(LED_BRIGHTNESS,0,-1):      #strip.numPixels()):
-        for led_pin in range(strip.numPixels()): #0,LED_BRIGHTNESS,1):
+    for val in range(LED_BRIGHTNESS,0,-1):      #number_of_pixels):
+        for led_pin in range(number_of_pixels): #0,LED_BRIGHTNESS,1):
             if str(led_pin) in nullpins:        #exclude NULL and LGND pins from wipe
-                strip.setPixelColor(led_pin, Color(0,0,0))
+                setPixelColor(led_pin, Color(0,0,0))
             else:
                 color2 = dimwipe(color1,val)
                 color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
-                strip.setPixelColor(led_pin, color)
-        strip.show()
+                setPixelColor(led_pin, color)
+        strip_show()
         time.sleep(wait*.5)
     time.sleep(wait*1)
 
@@ -508,26 +486,26 @@ def dimwipe(data,value):
 
 #Shuffle LED Wipe
 def shuffle(color1, color2, wait):
-    l = list(range(strip.numPixels()))
+    l = list(range(number_of_pixels))
     random.shuffle(l)
     for led_pin in l:
         if str(led_pin) in nullpins:            #exclude NULL and LGND pins from wipe
-            strip.setPixelColor(led_pin, Color(0,0,0))
+            setPixelColor(led_pin, Color(0,0,0))
         else:
             color = rgbtogrb_wipes(led_pin, color1, rgb_grb)
-            strip.setPixelColor(led_pin, color)
-        strip.show()
+            setPixelColor(led_pin, color)
+        strip_show()
         time.sleep(wait*1)
 
-    l = list(range(strip.numPixels()))
+    l = list(range(number_of_pixels))
     random.shuffle(l)
     for led_pin in l:
         if str(led_pin) in nullpins:            #exclude NULL and LGND pins from wipe
-            strip.setPixelColor(led_pin, Color(0,0,0))
+            setPixelColor(led_pin, Color(0,0,0))
         else:
             color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
-            strip.setPixelColor(led_pin, color)
-        strip.show()
+            setPixelColor(led_pin, color)
+        strip_show()
         time.sleep(wait*1)
 
 #Morse Code Wipe
@@ -557,22 +535,22 @@ def morse(color1,color2,msg,wait):
                 else:
                     delay = dash_leng
 
-                for led_pin in range(strip.numPixels()): #turn LED's on
+                for led_pin in range(number_of_pixels): #turn LED's on
                     if str(led_pin) in nullpins: #exclude NULL and LGND pins from wipe
-                        strip.setPixelColor(led_pin, Color(0,0,0))
+                        setPixelColor(led_pin, Color(0,0,0))
                     else:
                         color = rgbtogrb_wipes(led_pin, color1, rgb_grb)
-                        strip.setPixelColor(led_pin, color)
-                strip.show()
+                        setPixelColor(led_pin, color)
+                strip_show()
                 time.sleep(delay)               #time on depending on dot or dash
 
-                for led_pin in range(strip.numPixels()): #turn LED's off
+                for led_pin in range(number_of_pixels): #turn LED's off
                     if str(led_pin) in nullpins: #exclude NULL and LGND pins from wipe
-                        strip.setPixelColor(led_pin, Color(0,0,0))
+                        setPixelColor(led_pin, Color(0,0,0))
                     else:
                         color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
-                        strip.setPixelColor(led_pin, color)
-                strip.show()
+                        setPixelColor(led_pin, color)
+                strip_show()
                 time.sleep(bet_symb_leng)       #timing between symbols
             time.sleep(bet_let_leng)            #timing between letters
 
@@ -590,22 +568,22 @@ def morse(color1,color2,msg,wait):
                     else:
                         delay = dash_leng
 
-                    for led_pin in range(strip.numPixels()): #turn LED's on
+                    for led_pin in range(number_of_pixels): #turn LED's on
                         if str(led_pin) in nullpins: #exclude NULL and LGND pins from wipe
-                            strip.setPixelColor(led_pin, Color(0,0,0))
+                            setPixelColor(led_pin, Color(0,0,0))
                         else:
                             color = rgbtogrb_wipes(led_pin, color1, rgb_grb)
-                            strip.setPixelColor(led_pin, color)
-                    strip.show()
+                            setPixelColor(led_pin, color)
+                    strip_show()
                     time.sleep(delay)           #time on depending on dot or dash
 
-                    for led_pin in range(strip.numPixels()): #turn LED's off
+                    for led_pin in range(number_of_pixels): #turn LED's off
                         if str(led_pin) in nullpins: #exclude NULL and LGND pins from wipe
-                            strip.setPixelColor(led_pin, Color(0,0,0))
+                            setPixelColor(led_pin, Color(0,0,0))
                         else:
                             color = rgbtogrb_wipes(led_pin, color2, rgb_grb)
-                            strip.setPixelColor(led_pin, color)
-                    strip.show()
+                            setPixelColor(led_pin, color)
+                    strip_show()
                     time.sleep(bet_symb_leng)   #timing between symbols
 
                 time.sleep(bet_let_leng)        #timing between letters
@@ -617,44 +595,44 @@ def morse(color1,color2,msg,wait):
 def rabbit(color1, color2, wait):
     global LED_BRIGHTNESS
 
-    for led_pin in range(strip.numPixels()):    #turn LED's on
+    for led_pin in range(number_of_pixels):    #turn LED's on
         rabbit = led_pin + 1
 
         if str(led_pin) in nullpins or str(rabbit) in nullpins: #exclude NULL and LGND pins from wipe
-            strip.setPixelColor(led_pin, Color(0,0,0))
-            strip.setPixelColor(rabbit, Color(0,0,0))
+            setPixelColor(led_pin, Color(0,0,0))
+            setPixelColor(rabbit, Color(0,0,0))
 
         else:
 
-            if rabbit < strip.numPixels() and rabbit > 0:
+            if rabbit < number_of_pixels and rabbit > 0:
                 color = rgbtogrb_wipes(rabbit, color2, rgb_grb)
-                strip.setPixelColor(rabbit, color)
-                strip.show()
+                setPixelColor(rabbit, color)
+                strip_show()
 
             color = rgbtogrb_wipes(led_pin, color1, rgb_grb)
-            strip.setPixelColor(led_pin, color)
-            strip.show()
+            setPixelColor(led_pin, color)
+            strip_show()
             time.sleep(wait)
 
-    for led_pin in range(strip.numPixels(),-1,-1): #turn led's off
+    for led_pin in range(number_of_pixels,-1,-1): #turn led's off
         rabbit = led_pin + 1
         erase_pin = led_pin + 2
 
         if str(rabbit) in nullpins or str(erase_pin) in nullpins: #exclude NULL and LGND pins from wipe
-            strip.setPixelColor(rabbit, Color(0,0,0))
-            strip.setPixelColor(erase_pin, Color(0,0,0))
-            strip.show()
+            setPixelColor(rabbit, Color(0,0,0))
+            setPixelColor(erase_pin, Color(0,0,0))
+            strip_show()
         else:
 
-            if rabbit < strip.numPixels() and rabbit > 0:
+            if rabbit < number_of_pixels and rabbit > 0:
                 color = rgbtogrb_wipes(rabbit, color2, rgb_grb)
-                strip.setPixelColor(rabbit, color)
-                strip.show()
+                setPixelColor(rabbit, color)
+                strip_show()
 
-            if erase_pin < strip.numPixels() and erase_pin > 0:
+            if erase_pin < number_of_pixels and erase_pin > 0:
                 color = rgbtogrb_wipes(erase_pin, black_color, rgb_grb)
-                strip.setPixelColor(erase_pin, color)
-                strip.show()
+                setPixelColor(erase_pin, color)
+                strip_show()
                 time.sleep(wait)
 
     allonoff_wipes(black_color,0)
@@ -662,7 +640,7 @@ def rabbit(color1, color2, wait):
 #Start of executed code
 if __name__ == '__main__':
     #read airports file - read each time weather is updated in case a change to "airports" file was made while script was running.
-    with open("./airports") as f:
+    with open("/NeoSectional/airports") as f:
         airports = f.readlines()
     airports = [x.strip() for x in airports]
 
@@ -680,7 +658,7 @@ if __name__ == '__main__':
 
     contentStart = ['<response xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:noNamespaceSchemaLocation="http://aviationweather-cprk.ncep.noaa.gov/static/adds/schema/metar1_2.xsd">']
     content = []
-    chunk = 0;
+    chunk = 0
     stationList = ''
     for airportcode in airports:
       if airportcode == "NULL" or airportcode == "LGND":
@@ -710,7 +688,7 @@ if __name__ == '__main__':
               logger.warning('FAA Data is Not Available')
               logger.warning(url + stationList)
               logger.warning(result)
-              time.sleep(10)
+              time.sleep(delay_time)
               pass
 
          stationList = ''
@@ -737,7 +715,7 @@ if __name__ == '__main__':
         except:
             logger.warning('FAA Data is Not Available')
             logger.warning(url)
-            time.sleep(10)
+            time.sleep(delay_time)
             pass
  
     c = ['<x>']
@@ -914,7 +892,7 @@ if __name__ == '__main__':
         logger.info('Executing Rainbow Wipe')
 
     for j in range(num_rainbow):
-        rainbowCycle(strip, 2, wait)
+        rainbowCycle(2, wait)
 
     logger.info('Turning Off all LEDs')
 #    allonoff_wipes((0,0,0),.1)
