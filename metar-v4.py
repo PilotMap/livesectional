@@ -703,7 +703,7 @@ while (outerloop):
                 LED_BRIGHTNESS = dimmed_value
             else:
                 LED_BRIGHTNESS = bright_value
-            strip.setBrightness(LED_BRIGHTNESS)
+            strip.set_brightness(LED_BRIGHTNESS)
             strip.show_pixels()
 
             #fade in/out the home airport
@@ -1471,7 +1471,7 @@ while (outerloop):
                 logger.info("Ambient Sensor set brightness to bright_value")
                 ambient_toggle = 1
 
-        strip.setBrightness(LED_BRIGHTNESS)
+        strip.set_brightness(LED_BRIGHTNESS)
 
         toggle = not(toggle) #Used to determine if the homeport color should be displayed if "homeport = 1"
 
