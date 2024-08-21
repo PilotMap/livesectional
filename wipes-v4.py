@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 
 # Locals
 from log import logger
-from leds import LedStrip
+from leds import LedStrip, Color
 
 #Setup for IC238 Light Sensor for LED Dimming, does not need to be commented out if sensor is not used, map will remain at full brightness.
 #For more info on the sensor visit; http://www.uugear.com/portfolio/using-light-sensor-module-with-raspberry-pi/
