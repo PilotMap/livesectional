@@ -2,7 +2,8 @@
 Description=METAR-V4 Service
 
 [Service]
-ExecStart=python /usr/local/src/metar-v4.py
+WorkingDirectory=/home/pete/livesectional
+ExecStart=python /home/pete/metar-v4.py
 SyslogIdentifier=SRV_METAR_V4
 
 [Install]
