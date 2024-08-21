@@ -90,6 +90,9 @@ strip = LedStrip()
 app = Flask(__name__)
 app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'
 
+map_name = admin.map_name
+version = admin.version
+
 logger.info("Settings and Flask Have Been Setup")
 
 
