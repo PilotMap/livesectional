@@ -120,7 +120,7 @@ def map1():
     # other mapping code (e.g. lines, markers etc.)
     folium.LayerControl().add_to(folium_map)
 
-    folium_map.save(f'{PATH}/NeoSectional/templates/map.html')
+    folium_map.save(f'{PATH}/templates/map.html')
     return render_template('mapedit.html', title='Map', num = 5)
 
 
@@ -136,7 +136,7 @@ def touchscr():
 @app.route('/open_console', methods=["GET", "POST"])
 def open_console():
     console_ips = []
-    with open("./NeoSectional/console_ip.txt", "r") as file:
+    with open(f"{PATH}/console_ip.txt", "r") as file:
         for line in (file.readlines() [-1:]):
             line = line.rstrip()
             console_ips.append(line)
@@ -212,7 +212,7 @@ def update_info():
     """
     global ipadd
     global timestr
-    with open("./NeoSectional/update_info.txt","r") as file:
+    with open(f"{PATH}/update_info.txt","r") as file:
         content = file.readlines()
         logger.debug(content)
     return render_template("update_info.html",
