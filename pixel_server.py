@@ -2,6 +2,7 @@ import json
 import uvicorn
 
 from fastapi    import FastAPI, Query
+from pydantic   import List
 from rpi_ws281x import PixelStrip, Color
 
 
@@ -42,7 +43,7 @@ def show_leds():
     return
 
 @app.post("/pattern")
-def pattern(leds:str):
+def pattern(leds):
     leds = json.loads(leds)
     for l in range(len(leds)):
         rgb = int(leds[l],16)
