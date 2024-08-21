@@ -28,17 +28,8 @@ from flask     import Flask, render_template, request, flash, redirect, send_fil
 import admin
 import config
 #import scan_network
-
-# Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
-map_name = admin.map_name
-version = admin.version
-loglevel = config.loglevel
-loglevels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
-logzero.loglevel(loglevels[loglevel])  # Choices in order; DEBUG, INFO, WARNING, ERROR
-logzero.logfile("./logfile.log", maxBytes=1e6, backupCount=1)
-logger.info("\n\nStartup of metar-v4.py Script, Version " + version)
-logger.info("Log Level Set To: " + str(loglevels[loglevel]))
-
+from log  import logger
+from leds import LedStrip, Color
 
 PATH = '.'
 airports_file  = f'{PATH}/airports'
@@ -91,42 +82,8 @@ delay_time = 5                  # Delay in seconds between checking for internet
 num = 0                         # initialize num for airports editor
 ipadd = ''
 
-# LED strip configuration:
-LED_COUNT      = 500            # Max Number of LED pixels.
-LED_PIN        = 18             # GPIO pin connected to the pixels (18 uses PWM!).
-LED_FREQ_HZ    = 800000         # LED signal frequency in hertz (usually 800khz)
-LED_DMA        = 5              # DMA channel to use for generating signal (try 5)
-LED_BRIGHTNESS = 255            # Set to 0 for darkest and 255 for brightest
-LED_INVERT     = False          # True to invert the signal (when using NPN transistor level shift)
-LED_CHANNEL    = 0              # set to '1' for GPIOs 13, 19, 41, 45 or 53
-LED_STRIP      = "ws2812"
-Color = ()
 
-class Fake_Adafruit_NeoPixel:
-
-    def __init__(self,led_count,
-                      led_pin,
-                      led_freq_hz,
-                      led_dma,
-                      led_invert,
-                      led_brightness,
-                      led_channel,
-                      led_strip):
-        return
-
-    def setPixelColor(self, i, color):
-        data = dict(led=1, color=rgb2hex(color))
-        requests.post('http:0.0.0.0:8081',data=data)
-        return None
-
-    def begin(self):
-        return None
-
-    def show(self):
-        return None
-
-strip = Fake_Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, LED_STRIP)
-strip.begin()
+strip = LedStrip()
 
 
 # Initiate flash session
@@ -739,10 +696,8 @@ def importhm():
 def apedit():
     logger.info("Opening apedit.html")
     global airports
-    global strip
     global num
     global ipadd
-    global strip
     global ipaddresses
     global map_name
 
@@ -857,9 +812,9 @@ def ledonoff():
     global ipaddresses
     global timestr
 
-    for i in range(strip.numPixels()):
-        strip.setPixelColor(i, Color(0,0,0))
-    strip.show()
+    for i in range(strip.number()):
+        strip.set_pixel_color(i, Color(0,0,0))
+    strip.show_pixels()
 
     if request.method == "POST":
 
@@ -868,41 +823,41 @@ def ledonoff():
         if "buton" in request.form:
             num = int(request.form['lednum'])
             logger.info("LED " + str(num) + " On")
-            strip.setPixelColor(num, Color(155,155,155))
-            strip.show()
+            strip.set_pixel_color(num, Color(155,155,155))
+            strip.show_pixels()
             flash('LED ' + str(num) + ' On')
 
         elif "butoff" in request.form:
             num = int(request.form['lednum'])
             logger.info("LED " + str(num) + " Off")
-            strip.setPixelColor(num, Color(0,0,0))
-            strip.show()
+            strip.set_pixel_color(num, Color(0,0,0))
+            strip.show_pixels()
             flash('LED ' + str(num) + ' Off')
 
         elif "butup" in request.form:
             logger.info("LED UP")
             num = int(request.form['lednum'])
-            strip.setPixelColor(num, Color(0,0,0))
+            strip.set_pixel_color(num, Color(0,0,0))
             num = num + 1
 
             if num > len(airports):
                 num = len(airports)
 
-            strip.setPixelColor(num, Color(155,155,155))
-            strip.show()
+            strip.set_pixel_color(num, Color(155,155,155))
+            strip.show_pixels()
             flash('LED ' + str(num) + ' should be On')
 
         elif "butdown" in request.form:
             logger.info("LED DOWN")
             num = int(request.form['lednum'])
-            strip.setPixelColor(num, Color(0,0,0))
+            strip.set_pixel_color(num, Color(0,0,0))
 
             num = num - 1
             if num < 0:
                 num = 0
 
-            strip.setPixelColor(num, Color(155,155,155))
-            strip.show()
+            strip.set_pixel_color(num, Color(155,155,155))
+            strip.show_pixels()
             flash('LED ' + str(num) + ' should be On')
 
         elif "butall" in request.form:
@@ -910,8 +865,8 @@ def ledonoff():
             num = int(request.form['lednum'])
 
             for num in range(len(airports)):
-                strip.setPixelColor(num, Color(155,155,155))
-            strip.show()
+                strip.set_pixel_color(num, Color(155,155,155))
+            strip.show_pixels()
             flash('All LEDs should be On')
             num=0
 
@@ -920,8 +875,8 @@ def ledonoff():
             num = int(request.form['lednum'])
 
             for num in range(len(airports)):
-                strip.setPixelColor(num, Color(0,0,0))
-            strip.show()
+                strip.set_pixel_color(num, Color(0,0,0))
+            strip.show_pixels()
             flash('All LEDs should be Off')
             num=0
 
