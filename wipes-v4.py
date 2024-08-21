@@ -868,9 +868,6 @@ if __name__ == '__main__':
     for j in range(num_rainbow):
         rainbowCycle(2, wait)
 
-    logger.info('Turning Off all LEDs')
-#    allonoff_wipes((0,0,0),.1)
-
     #Rabbit Chase effect
     if num_rabbit > 0:
         logger.info('Executing Rabbit Chase Wipe')

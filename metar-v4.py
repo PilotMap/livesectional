@@ -84,17 +84,19 @@ import time
 from datetime import datetime
 from datetime import timedelta
 from datetime import time as time_
-from rpi_ws281x import * #works with python 3.7. sudo pip3 install rpi_ws281x
+
 import sys
 import os
 from os.path import getmtime
-import RPi.GPIO as GPIO
+
 import collections
 import re
 
+# Local
 import admin
 import config
 from log import logger
+from leds import LedStrip, Color
 
 #****************************************************************************
 #* User defined items to be set below - Make changes to config.py, not here *
@@ -288,15 +290,6 @@ GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_UP)       #set pin 12 to ground fo
 GPIO.setup(1, GPIO.IN, pull_up_down=GPIO.PUD_UP)        #set pin 1 to ground for TAF + 10 hours
 GPIO.setup(7, GPIO.IN, pull_up_down=GPIO.PUD_UP)        #set pin 7 to ground for TAF + 11 hours
 
-#LED strip configuration:
-LED_PIN        = 18                     #GPIO pin connected to the pixels (18 uses PWM!).
-LED_FREQ_HZ    = 800000                 #LED signal frequency in hertz (usually 800khz)
-LED_DMA        = 5                      #DMA channel to use for generating signal (try 5)
-LED_INVERT     = False                  #True to invert the signal (when using NPN transistor level shift)
-LED_CHANNEL    = 0                      #set to '1' for GPIOs 13, 19, 41, 45 or 53
-LED_STRIP      = ws.WS2811_STRIP_GRB    #Strip type and color ordering
-LED_BRIGHTNESS = bright_value           #255    #starting brightness. It will be changed below.
-
 #Setup paths for restart on change routine. Routine from;
 #https://blog.petrzemek.net/2014/03/23/restarting-a-python-script-within-itself
 LOCAL_CONFIG_FILE_PATH = './config.py'
@@ -336,15 +329,13 @@ ambient_toggle = 0                      # Toggle used for logging when ambient s
 logger.info("metar-v4.py Settings Loaded")
 
 #Create an instance of NeoPixel
-strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, LED_STRIP)
-strip.begin()
-
+strip = LedStrip()
 
 # Functions
 def turnoff(strip):
-    for i in range(strip.numPixels()):
-        strip.setPixelColor(i, Color(0,0,0))
-    strip.show()
+    for i in range(strip.number()):
+        strip.set_pixel_color(i, Color(0,0,0))
+    strip.show_pixels()
 
 #Reduces the brightness of the colors for every airport except for the "homeport_pin" designated airport, which remains at the brightness set by
 #"bright_value" above in user setting. "data" is the airport color to display and "value" is the percentage of the brightness to be dimmed.
@@ -694,9 +685,9 @@ while (outerloop):
 
                 xcolor = rgbtogrb(pin, color, rgb_grb)
                 color = Color(xcolor[0], xcolor[1], xcolor[2])
-                strip.setPixelColor(int(pin), color) #set color to display on a specific LED for the current cycle_num cycle.
+                strip.set_pixel_color(int(pin), color) #set color to display on a specific LED for the current cycle_num cycle.
 
-            strip.show() #Display strip with newly assigned colors for the current cycle_num cycle.
+            strip.show_pixels() #Display strip with newly assigned colors for the current cycle_num cycle.
 
         while True:
             #Routine to restart this script if config.py is changed while this script is running.
@@ -713,7 +704,7 @@ while (outerloop):
             else:
                 LED_BRIGHTNESS = bright_value
             strip.setBrightness(LED_BRIGHTNESS)
-            strip.show()
+            strip.show_pixels()
 
             #fade in/out the home airport
             if int(fadehome) >= 0 and fade_yesno == 1 and bin_grad == 1:
@@ -726,8 +717,8 @@ while (outerloop):
                     color = [red, i, blu]
                     xcolor = rgbtogrb(pin, color, rgb_grb)
                     color = Color(xcolor[0], xcolor[1], xcolor[2])
-                    strip.setPixelColor(int(pin), color) #set color to display on a specific LED for the current cycle_num cycle.
-                    strip.show()
+                    strip.set_pixel_color(int(pin), color) #set color to display on a specific LED for the current cycle_num cycle.
+                    strip.show_pixels()
 
                 time.sleep(fade_delay *50) #Keep light full bright for a moment.
 
@@ -739,8 +730,8 @@ while (outerloop):
                     color = [red, j, blu]
                     xcolor = rgbtogrb(pin, color, rgb_grb)
                     color = Color(xcolor[0], xcolor[1], xcolor[2])
-                    strip.setPixelColor(int(pin), color) #set color to display on a specific LED for the current cycle_num cycle.
-                    strip.show()
+                    strip.set_pixel_color(int(pin), color) #set color to display on a specific LED for the current cycle_num cycle.
+                    strip.show_pixels()
 
             #Check if rotary switch is used, and what position it is in. This will determine what to display, METAR, TAF and MOS data.
             #If TAF or MOS data, what time offset should be displayed, i.e. 0 hour, 1 hour, 2 hour etc.
@@ -1685,12 +1676,12 @@ while (outerloop):
                     norm_color = xcolor
                     xcolor = Color(norm_color[0], norm_color[1], norm_color[2])
 
-                strip.setPixelColor(i, xcolor) #set color to display on a specific LED for the current cycle_num cycle.
+                strip.set_pixel_color(i, xcolor) #set color to display on a specific LED for the current cycle_num cycle.
                 i = i + 1 #set next LED pin in strip
 
             print("/LED.",end='')
             sys.stdout.flush()
-            strip.show() #Display strip with newly assigned colors for the current cycle_num cycle.
+            strip.show_pixels() #Display strip with newly assigned colors for the current cycle_num cycle.
             print(".",end='')
             wait_time = cycle_wait[cycle_num] #cycle_wait time is a user defined value
             time.sleep(wait_time) #pause between cycles. pauses are setup in user definitions.
