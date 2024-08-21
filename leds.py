@@ -14,7 +14,8 @@ def Color(r,g,b):
     The code has Color all over, but never defined. It just returns a set to pass back to the
     Adafruit library calls
     """
-    return(r,g,b)
+    return int("0x{:02x}{:02x}{:02x}".format(r,g,b),16)
+
 
 
 class LedStrip:
