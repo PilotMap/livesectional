@@ -109,7 +109,7 @@ def rainbowCycle(iterations, wait=.1):
                 strip.set_pixel_color(led_pin, Color(0,0,0))
             else:
                 strip.set_pixel_color(led_pin, wheel((int(led_pin * 256 / strip.number) + j) & 255))
-        strip.show_pixels_leds()
+        strip.show_pixels()
         time.sleep(wait/100)
 
 #Generate random RGB color
