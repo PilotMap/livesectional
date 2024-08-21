@@ -45,7 +45,7 @@ def show_leds():
 def pattern(leds:str):
     leds = json.loads(leds)
     for l in range(len(leds)):
-        rgb = int(leds[l])
+        rgb = int(leds[l],16)
         strip.setPixelColor(l, rgb)
     strip.show()
 
