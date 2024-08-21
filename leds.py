@@ -30,7 +30,7 @@ class LedStrip:
         self.number = self.strip.numPixels()
 
     def set_pixel_color(self, led, color):
-        self.setPixelColor(led, color)
+        self.strip.setPixelColor(led, color)
 
     def show_pixels(self):
         self.strip.show()
