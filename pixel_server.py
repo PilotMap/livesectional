@@ -2,7 +2,6 @@ import json
 import uvicorn
 
 from fastapi    import FastAPI, Query
-from pydantic   import List
 from rpi_ws281x import PixelStrip, Color
 
 
