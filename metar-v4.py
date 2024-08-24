@@ -333,7 +333,7 @@ strip = LedStrip()
 
 # Functions
 def turnoff(strip):
-    for i in range(strip.number()):
+    for i in range(strip.number):
         strip.set_pixel_color(i, Color(0,0,0))
     strip.show_pixels()
 
