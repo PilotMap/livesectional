@@ -2,7 +2,7 @@
 Description=METAR-DISPLAY-V4 Service
 
 [Service]
-ExecStart=python /usr/local/src/metar-display-v4.py
+ExecStart=python /home/pi/livesectional/metar-display-v4.py
 SyslogIdentifier=SRV_METAR_V4
 
 [Install]

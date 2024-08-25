@@ -2,8 +2,8 @@
 Description=Web App Service
 
 [Service]
-WorkingDirectory=/home/pete/livesectional
-ExecStart=/usr/bin/uwsgi -i /home/pete/livesectional/uwsgi.ini
+WorkingDirectory=/home/pi/livesectional
+ExecStart=/usr/bin/uwsgi -i /home/pi/livesectional/uwsgi.ini
 SyslogIdentifier=SRV_APPS
 
 [Install]
