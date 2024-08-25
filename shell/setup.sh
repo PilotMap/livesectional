@@ -1,16 +1,17 @@
 # Make sure you run this as sudo
-apt update -y
-apt upgrade -y
-apt install -y emacs-nox
-apt install -y git
-apt install -y python3-pip python3-venv
-apt install -y uwsgi uwsgi-plugin-python3 nginx
+sudo apt update -y
+sudo apt upgrade -y
+sudo apt install -y git emacs-nox
+sudo apt install -y python3-pip python3-venv uwsgi uwsgi-plugin-python3 nginx python3-numpy
+sudo curl  -L https://raw.githubusercontent.com/nksan/Rpi-SetWiFi-viaBluetooth/main/btwifisetInstall.sh | bash
 
-pip3 install flask wget arrow logzero folium rpi_ws281x adafruit-circuitpython-neopixel
-pip3 install --force-reinstall adafruit-blinka
+python3 -m venv livesectional
+cd livesectional
+. bin/activate
 
-curl  -L https://raw.githubusercontent.com/nksan/Rpi-SetWiFi-viaBluetooth/main/btwifisetInstall.sh | bash
-
-git clone git@github.com:PilotMap/livesectional.git
-cd ../etc/system
-install.sh
+git clone https://github.com/PilotMap/livesectional.git
+cd livesectional
+git checkout cleanup
+pip3 install -r requirements.txt
+chmod +x /home/pi/livesectional/livesectional/etc/install.sh
+/home/pi/livesectional/livesectional/etc/install.sh
