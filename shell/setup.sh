@@ -13,6 +13,9 @@ source bin/activate
 git clone https://github.com/PilotMap/livesectional.git
 cd livesectional
 git checkout cleanup
+
+pip3 install rpi_ws281x adafruit-circuitpython-neopixel
+pip3 install --force-reinstall adafruit-blinka
 pip3 install -r requirements.txt
 
 chmod +x /home/pi/livesectional/livesectional/etc/install.sh
