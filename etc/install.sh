@@ -20,7 +20,6 @@ systemctl start app.service
 systemctl start metar-v4.service
 systemctl start metar-display-v4.service
 
-systemctl enable pixel.service
 systemctl enable app.service
 systemctl enable metar-v4.service
 systemctl enable metar-display-v4.service
