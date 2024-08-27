@@ -77,7 +77,7 @@
 ###########################
 
 #Import needed libraries
-import urllib.request, urllib.error, urllib.parse
+import urllib.request, urllib.parse
 import socket
 import xml.etree.ElementTree as ET
 import time
@@ -102,10 +102,10 @@ from leds import LedStrip, Color
 #* User defined items to be set below - Make changes to config.py, not here *
 #****************************************************************************
 PATH = './'
-#list of pins that need to reverse the rgb_grb setting. To accommodate two different models of LED's are used.
+# List of pins that need to reverse the rgb_grb setting. To accommodate two different models of LED's are used.
 rev_rgb_grb = config.rev_rgb_grb        #[] #['1', '2', '3', '4', '5', '6', '7', '8']
 
-#Specific Variables to default data to display if Rotary Switch is not installed.
+# Specific Variables to default data to display if Rotary Switch is not installed.
 hour_to_display = config.time_sw0       #hour_to_display #Offset in HOURS to choose which TAF/MOS to display
 metar_taf_mos = config.data_sw0         #metar_taf_mos    #0 = Display TAF, 1 = Display METAR, 2 = Display MOS, 3 = Heat Map (Heat map not controlled by rotary switch)
 toggle_sw = -1                          #Set toggle_sw to an initial value that forces rotary switch to dictate data displayed
