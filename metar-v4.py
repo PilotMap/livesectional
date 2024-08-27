@@ -579,7 +579,7 @@ while (outerloop):
     if metar_taf_mos != 2 and metar_taf_mos != 3:
         contentStart = ['<response xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:noNamespaceSchemaLocation="https://aviationweather.gov/data/schema/metar1_3.xsd">']
         content = []
-        chunk = 0;
+        chunk = 0
         stationList = ''
         for airportcode in airports:
           if airportcode == "NULL" or airportcode == "LGND":
@@ -1039,7 +1039,7 @@ while (outerloop):
 
     #TAF decode routine
     if metar_taf_mos == 0: #0 equals display TAF. This routine will decode the TAF, pick the appropriate time frame to display.
-        logging.info("Starting TAF Data Display")
+        logger.info("Starting TAF Data Display")
         #start of TAF decoding routine
         for data in root.iter('data'):
             num_results = data.attrib['num_results']        #get number of airports reporting TAFs to be used for diagnosis only
