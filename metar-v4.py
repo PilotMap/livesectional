@@ -625,11 +625,6 @@ while (outerloop):
         logger.debug(url) #debug
 
         while True: #check internet availability and retry if necessary. If house power outage, map may boot quicker than router.
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ipadd = s.getsockname()[0] #get IP Address
-            logger.info('RPI IP Address = ' + ipadd) #log IP address when ever FAA weather update is retreived.
-            logger.info('API URL No chunk: ' + url)
             try:
                 result = urllib.request.urlopen(url, timeout=30).read() # Added timeout feature - Eric B
                 logger.info('Internet Available')
@@ -650,7 +645,6 @@ while (outerloop):
         c = ['<x>']
         c.extend(content)
         root = ET.fromstringlist(c + ['</x>'])
-
 
     if turnoffrefresh == 0:
         turnoff(strip) #turn off led before repainting them. If Rainbow stays on, it has hung up before this.
