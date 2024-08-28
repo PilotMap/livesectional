@@ -1,4 +1,4 @@
-from rpi_ws281x import PixelStrip
+from rpi_ws281x import PixelStrip, rainbowCycle
 
 # LED strip configuration:
 LED_COUNT      = 60        # Number of LED pixels.
@@ -38,4 +38,11 @@ class LedStrip:
 
     def set_brightness(self,brightness):
         self.strip.setBrightness(LED_BRIGHTNESS)
+
+    def rainbow(self):
+        rainbowCycle(self.strip)
+
+    def orange(self):
+        for i in self.number:
+            self.set_pixel_color(i,0xFFA500)
 
