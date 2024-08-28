@@ -12,8 +12,8 @@ sudo raspi-config nonint do_i2c 0
 # Install BerryLan
 echo -e "deb http://repository.nymea.io $(lsb_release -s -c) main" | sudo tee /etc/apt/sources.list.d/nymea.list
 sudo wget -O /etc/apt/trusted.gpg.d/nymea.gpg https://repository.nymea.io/nymea.gpg
-sudo apt-get update
-sudo apt-get install nymea-networkmanager dirmngr
+sudo apt update
+sudo apt install -y nymea-networkmanager dirmngr
 
 python3 -m venv --system-site-packages livesectional
 cd livesectional
@@ -23,7 +23,7 @@ git clone https://github.com/PilotMap/livesectional.git
 cd livesectional
 git checkout cleanup
 
-pip3 install rpi_ws281x adafruit-circuitpython-neopixel
+pip3 install adafruit-circuitpython-neopixel
 pip3 install --force-reinstall adafruit-blinka
 pip3 install -r requirements.txt
 
