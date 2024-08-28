@@ -49,6 +49,6 @@ class LedStrip:
             self.show_pixels()
 
     def orange(self):
-        for i in self.number:
+        for i in range(self.number):
             self.set_pixel_color(i, 0xFFA500)
         self.show_pixels()
