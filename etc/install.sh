@@ -14,6 +14,9 @@ chmod 644 /etc/systemd/system/metar-v4.service
 cp home/livesectional/livesectional/etc/system/metar-display-v4.service /etc/systemd/system/
 chmod 644 /etc/systemd/system/metar-display-v4.service
 
+cp home/livesectional/livesectional/etc/system/lightup.service /etc/systemd/system/
+chmod 644 /etc/systemd/system/lightup.service
+
 systemctl daemon-reload
 
 systemctl start app.service
@@ -23,5 +26,6 @@ systemctl start metar-display-v4.service
 systemctl enable app.service
 systemctl enable metar-v4.service
 systemctl enable metar-display-v4.service
+systemctl enable lightup.service
 
 systemctl restart nginx
