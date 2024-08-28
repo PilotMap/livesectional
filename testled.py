@@ -7,7 +7,7 @@ if __name__ == '__main__':
     subprocess.run(['systemctl', 'stop', 'metar-v4'], capture_output=True)
     strip = LedStrip()
     for i in range(strip.number):
-        strip.setPixelColor(i,0xFF0000)
+        strip.set_pixel_color(i,0xFF0000)
         strip.show_pixels()
         time.sleep(.1)
 
