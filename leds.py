@@ -42,7 +42,7 @@ class LedStrip:
 
     def rainbow(self, times):
         for _ in range(times):
-            for i in self.number:
+            for i in range(self.number):
                 self.set_pixel_color(i, Color(random.randint(0, 255),
                                               random.randint(0, 255),
                                               random.randint(0, 255)))
