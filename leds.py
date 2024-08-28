@@ -1,3 +1,4 @@
+import time
 import random
 from rpi_ws281x import PixelStrip
 
@@ -40,13 +41,14 @@ class LedStrip:
     def set_brightness(self, brightness):
         self.strip.setBrightness(LED_BRIGHTNESS)
 
-    def rainbow(self, times):
+    def rainbow(self, times,delay):
         for _ in range(times):
             for i in range(self.number):
                 self.set_pixel_color(i, Color(random.randint(0, 255),
                                               random.randint(0, 255),
                                               random.randint(0, 255)))
             self.show_pixels()
+            time.sleep(delay)
 
     def orange(self):
         for i in range(self.number):
