@@ -535,7 +535,7 @@ while (outerloop):
     wxstringdict = {"":""}
 
     #Call script and execute desired wipe(s) while data is being updated.
-    '''
+    ''' THIS IS BAD 
     if usewipes ==  1 and toggle_sw != -1:
         exec(compile(open("./wipes-v4.py", "rb").read(), "./wipes-v4.py", 'exec')) #Get latest ip's to display in editors
         logger.info("Calling wipes script")

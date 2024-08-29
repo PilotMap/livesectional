@@ -1,5 +1,6 @@
 set -x
 
+systemctl stop nginx
 cp /home/pi/livesectional/livesectional/etc/nginx/app.conf /etc/nginx/sites-available
 ln /etc/nginx/sites-available/app.conf /etc/nginx/sites-enabled/
 rm /etc/nginx/sites-available/default

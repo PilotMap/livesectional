@@ -1,5 +1,6 @@
 import time
 import random
+
 from rpi_ws281x import PixelStrip
 
 # LED strip configuration:
@@ -36,7 +37,10 @@ class LedStrip:
         self.strip.setPixelColor(led, color)
 
     def show_pixels(self):
-        self.strip.show()
+        try:
+            self.strip.show()
+        except Exception as e:
+            print("Error:{e} trying to show pixels")
 
     def set_brightness(self, brightness):
         self.strip.setBrightness(LED_BRIGHTNESS)

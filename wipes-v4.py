@@ -14,12 +14,12 @@ from leds import LedStrip, Color
 
 #Setup for IC238 Light Sensor for LED Dimming, does not need to be commented out if sensor is not used, map will remain at full brightness.
 #For more info on the sensor visit; http://www.uugear.com/portfolio/using-light-sensor-module-with-raspberry-pi/
-'''
+
 import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BCM)  #set mode to BCM and use BCM pin numbering, rather than BOARD pin numbering.
 GPIO.setup(4, GPIO.IN)  #set pin 4 as input for light sensor, if one is used. If no sensor used board remains at high brightness always.
 GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 22 to momentary push button to force FAA Weather Data update if button is used.
-'''
+
 #Misc settings
 rgb_grb     = config.rgb_grb                    # 1 = RGB color codes. 0 = GRB color codes. Populate color codes below with normal RGB codes and script will change it as necessary
 metar_age   = config.metar_age                  # age of metar to retrieve

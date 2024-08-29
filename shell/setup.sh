@@ -14,6 +14,7 @@ echo -e "deb http://repository.nymea.io $(lsb_release -s -c) main" | sudo tee /e
 sudo wget -O /etc/apt/trusted.gpg.d/nymea.gpg https://repository.nymea.io/nymea.gpg
 sudo apt update
 sudo apt install -y nymea-networkmanager dirmngr
+# Edit
 
 python3 -m venv --system-site-packages livesectional
 cd livesectional
