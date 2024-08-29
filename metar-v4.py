@@ -535,10 +535,11 @@ while (outerloop):
     wxstringdict = {"":""}
 
     #Call script and execute desired wipe(s) while data is being updated.
+    '''
     if usewipes ==  1 and toggle_sw != -1:
         exec(compile(open("./wipes-v4.py", "rb").read(), "./wipes-v4.py", 'exec')) #Get latest ip's to display in editors
         logger.info("Calling wipes script")
-
+    '''
     #read airports file - read each time weather is updated in case a change to "airports" file was made while script was running.
     try:
         with open('./airports') as f:

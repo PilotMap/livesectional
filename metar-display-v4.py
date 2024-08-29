@@ -89,9 +89,8 @@ import socket
 import collections
 import re
 import random
-import logging
-import logzero
-from logzero import logger
+from log import logger
+
 import config                                   #User settings stored in file config.py, used by other scripts
 import admin
 
@@ -115,12 +114,6 @@ from PIL import ImageFont
 
 # Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
 version = admin.version                         #Software version
-loglevel = config.loglevel
-loglevels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
-logzero.loglevel(loglevels[loglevel])           #Choices in order; DEBUG, INFO, WARNING, ERROR
-logzero.logfile("./logfile.log", maxBytes=1e6, backupCount=1)
-logger.info("\n\nStartup of metar-display-v4.py Script, Version " + version)
-logger.info("Log Level Set To: " + str(loglevels[loglevel]))
 
 #****************************************************************************
 #*  User defined Setting Here - Make changes in config.py instead of here.  *
@@ -298,10 +291,13 @@ startnum = 0                                    #Used for cycling through the nu
 stopnum = numofdisplays                         #Same
 stepnum = 1                                     #Same
 
-#Get info to display active IP address
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-s.connect(("8.8.8.8", 80))
-logger.info("Settings Loaded")
+try:
+    #Get info to display active IP address
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    logger.info("Settings Loaded")
+except Exception as e:
+    logger.error(f'Error {e} opening socket')
 
 #Functions
 # Part of Timer Fix - Thank You to Matthew G
