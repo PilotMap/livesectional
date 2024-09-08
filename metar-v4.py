@@ -1676,6 +1676,7 @@ while (outerloop):
 
             print("/LED.",end='')
             sys.stdout.flush()
+
             strip.show_pixels() #Display strip with newly assigned colors for the current cycle_num cycle.
             print(".",end='')
             wait_time = cycle_wait[cycle_num] #cycle_wait time is a user defined value
