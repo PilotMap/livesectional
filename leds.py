@@ -6,7 +6,6 @@ except ModuleNotFoundError:
     from fakes import PixelStrip, Color
 
 # LED strip configuration:
-LED_COUNT      = 500      # Number of LED pixels.
 LED_PIN        = 18       # GPIO pin connected to the pixels (18 uses PWM!).
 LED_FREQ_HZ    = 800000   # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 10       # DMA channel to use for generating signal (try 10)
@@ -24,8 +23,8 @@ def Color(r, g, b):
 '''
 
 class LedStrip:
-    def __init__(self):
-        self.strip = PixelStrip(LED_COUNT,
+    def __init__(self, count):
+        self.strip = PixelStrip(count,
                                 LED_PIN,
                                 LED_FREQ_HZ,
                                 LED_DMA,

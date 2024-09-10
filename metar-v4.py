@@ -329,7 +329,7 @@ ambient_toggle = 0                      # Toggle used for logging when ambient s
 logger.info("metar-v4.py Settings Loaded")
 
 #Create an instance of NeoPixel
-strip = LedStrip()
+strip = LedStrip(LED_COUNT)
 
 # Functions
 def turnoff(strip):

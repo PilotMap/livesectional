@@ -30,5 +30,3 @@ class PixelStrip:
 
     def setPixelColor(self, *args):
         return
-
-    def set
