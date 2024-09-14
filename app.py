@@ -83,7 +83,7 @@ num = 0                         # initialize num for airports editor
 ipadd = ''
 
 
-strip = LedStrip()
+strip = LedStrip(config.LED_COUNT)
 
 
 # Initiate flash session
@@ -1834,6 +1834,6 @@ called
 """
 setup()
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=False, host='0.0.0.0')
 
 
