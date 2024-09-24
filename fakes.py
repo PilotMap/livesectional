@@ -18,15 +18,17 @@ def Color(r, g, b):
     return int("0x{:02x}{:02x}{:02x}".format(r, g, b), 16)
 
 class PixelStrip:
+    count = None
 
-    def init(self, *args):
+    def __init__(self, *args):
+        self.count = args[0]
         return
 
     def begin(self):
         return
 
-    def NumPixels(self):
-        return 100
+    def numPixels(self):
+        return self.count
 
     def setPixelColor(self, *args):
         return
