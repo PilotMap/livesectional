@@ -84,30 +84,62 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import time as time_ #part of timer fix
 import operator
-import RPi.GPIO as GPIO
+
 import socket
 import collections
 import re
 import random
 from log import logger
-
 import config                                   #User settings stored in file config.py, used by other scripts
 import admin
 
-#LCD Libraries - Only needed if an LCD Display is to be used. Comment out if you would like.
-#Visit; http://www.circuitbasics.com/raspberry-pi-lcd-set-up-and-programming-in-python/ and follow info for 4-bit mode.
-#To install RPLCD library;
-#    sudo pip3 install RPLCD
-import RPLCD
-from RPLCD.gpio import CharLCD
 
-#OLED libraries - Only needed if OLED Display(s) are to be used. Comment out if you would like.
-import smbus2                                   #Install smbus2; sudo pip3 install smbus2
 #   git clone https://github.com/adafruit/Adafruit_Python_GPIO.git
 #   cd Adafruit_Python_GPIO
 #   sudo python3 setup.py install
-from Adafruit_GPIO import I2C
-import Adafruit_SSD1306                         #sudo pip3 install Adafruit-SSD1306
+try:
+    import RPi.GPIO as GPIO
+    from Adafruit_GPIO import I2C
+    import Adafruit_SSD1306                         #sudo pip3 install Adafruit-SSD1306
+except ImportError:
+    logger.error(f"No hardware found")
+else:
+    GPIO.setmode(GPIO.BCM)                          #set mode to BCM and use BCM pin numbering, rather than BOARD pin numbering.
+    GPIO.setwarnings(False)
+
+    #Set GPIO pin 4 for IC238 Light Sensor, if used.
+    GPIO.setup(4, GPIO.IN)                          #set pin 4 as input for light sensor, if one is used. If no sensor used board remains at high brightness always.
+
+    #set GPIO pin 22 to momentary push button to force FAA Weather Data update if button is used.
+    GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+    #Setup GPIO pins for rotary switch to choose between METARs, or TAFs and which hour of TAF
+    #Not all the pins are required to be used. If only METARS are desired, then no Rotary Switch is needed.
+    #A rotary switch with up to 12 poles can be installed, but as few as 2 poles will switch between METAR's and TAF's
+    GPIO.setup(0, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 0 to ground for METARS
+    GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 5 to ground for TAF + 1 hour
+    GPIO.setup(6, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 6 to ground for TAF + 2 hours
+    GPIO.setup(13, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 13 to ground for TAF + 3 hours
+    GPIO.setup(19, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 19 to ground for TAF + 4 hours
+    GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 26 to ground for TAF + 5 hours
+    GPIO.setup(21, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 21 to ground for TAF + 6 hours
+    GPIO.setup(20, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 20 to ground for TAF + 7 hours
+    GPIO.setup(16, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 16 to ground for TAF + 8 hours
+    GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 12 to ground for TAF + 9 hours
+    GPIO.setup(1, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 1 to ground for TAF + 10 hours
+    GPIO.setup(7, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 7 to ground for TAF + 11 hours
+
+    # Raspberry Pi pin configuration:
+    RST = None                                      #on the PiOLED this pin isnt used
+
+    #Setup Adafruit library for OLED display.
+    disp = Adafruit_SSD1306.SSD1306_128_64(rst=RST) #128x64 or 128x32 - disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST)
+
+    TCA_ADDR = 0x70                                 #use cmd i2cdetect -y 1 to ensure multiplexer shows up at addr 0x70
+    tca = I2C.get_i2c_device(address=TCA_ADDR)
+    port = 1                                        #Default port. set to 0 for original RPi or Orange Pi, etc
+
+
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
@@ -225,42 +257,6 @@ backcolor = 0                                   #0 = Black, background color for
 fontcolor = 255                                 #255 = White, font color for OLED display. Shouldn't need to change
 temp_time_flag = 0                              #Set flag for next round of tempsleepon activation (temporarily turns on map when in sleep mode)
 
-#Set general GPIO parameters
-GPIO.setmode(GPIO.BCM)                          #set mode to BCM and use BCM pin numbering, rather than BOARD pin numbering.
-GPIO.setwarnings(False)
-
-#Set GPIO pin 4 for IC238 Light Sensor, if used.
-GPIO.setup(4, GPIO.IN)                          #set pin 4 as input for light sensor, if one is used. If no sensor used board remains at high brightness always.
-
-#set GPIO pin 22 to momentary push button to force FAA Weather Data update if button is used.
-GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-#Setup GPIO pins for rotary switch to choose between METARs, or TAFs and which hour of TAF
-#Not all the pins are required to be used. If only METARS are desired, then no Rotary Switch is needed.
-#A rotary switch with up to 12 poles can be installed, but as few as 2 poles will switch between METAR's and TAF's
-GPIO.setup(0, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 0 to ground for METARS
-GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 5 to ground for TAF + 1 hour
-GPIO.setup(6, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 6 to ground for TAF + 2 hours
-GPIO.setup(13, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 13 to ground for TAF + 3 hours
-GPIO.setup(19, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 19 to ground for TAF + 4 hours
-GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 26 to ground for TAF + 5 hours
-GPIO.setup(21, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 21 to ground for TAF + 6 hours
-GPIO.setup(20, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 20 to ground for TAF + 7 hours
-GPIO.setup(16, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 16 to ground for TAF + 8 hours
-GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 12 to ground for TAF + 9 hours
-GPIO.setup(1, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 1 to ground for TAF + 10 hours
-GPIO.setup(7, GPIO.IN, pull_up_down=GPIO.PUD_UP) #set pin 7 to ground for TAF + 11 hours
-
-# Raspberry Pi pin configuration:
-RST = None                                      #on the PiOLED this pin isnt used
-
-#Setup Adafruit library for OLED display.
-disp = Adafruit_SSD1306.SSD1306_128_64(rst=RST) #128x64 or 128x32 - disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST)
-
-TCA_ADDR = 0x70                                 #use cmd i2cdetect -y 1 to ensure multiplexer shows up at addr 0x70
-tca = I2C.get_i2c_device(address=TCA_ADDR)
-port = 1                                        #Default port. set to 0 for original RPi or Orange Pi, etc
-bus = smbus2.SMBus(port)                        #From smbus2 set bus number
 
 #Setup paths for restart on change routine. Routine from;
 #https://blog.petrzemek.net/2014/03/23/restarting-a-python-script-within-itself
@@ -427,6 +423,7 @@ def oleddim(level=0): #Dimming routine. 0 = Full Brightness, 1 = low brightness,
         disp.command(0xDB)                      #SSD1306_SETVCOMDETECT = 0xDB
         disp.command(dimmin)
 
+
 def invertoled(i):                              #Invert display pixels. Normal = white text on black background.
     if i:                                       #Inverted = black text on white background #0 = Normal, 1 = Inverted
         disp.command(0xA7)                      #SSD1306_INVERTDISPLAY
@@ -572,7 +569,7 @@ while True:
 
     #read airports file - read each time weather is updated in case a change to "airports" file was made while script was running.
     try:
-        with open("./airports") as f:
+        with open("airports_original") as f:
             airports = f.readlines()
     except IOError as error:
         logger.error('Airports file could not be loaded.')
