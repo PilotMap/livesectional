@@ -293,7 +293,9 @@ def led_map():
 
     # Initialize Map
     folium_map = folium.Map(location=start_coords,
-                            zoom_start = 5, height='100%', width='100%',
+                            zoom_start = 5,
+                            height='100%',
+                            width='100%',
                             control_scale = True,
                             zoom_control = True,
                             tiles = 'OpenStreetMap')
@@ -559,7 +561,7 @@ def index ():
 @app.route('/download_ap', methods=["GET", "POST"])
 def downloadairports ():
     logger.info("Downloaded Airport File")
-    path = "airports"
+    path = "airports_original"
     return send_file(path, as_attachment=True)
 
 

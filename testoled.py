@@ -1,14 +1,20 @@
 #OLED Test Program - Mark Harris
 # Used to test that OLEDs are wired and working properly
-
 import time
+import smbus2                                   #Install smbus2; sudo pip3 install smbus2
+import config
+
+import Adafruit_SSD1306
+
+
 from Adafruit_GPIO import I2C
-import Adafruit_SSD1306                         #sudo pip3 install Adafruit-SSD1306
+
+
+                        #sudo pip3 install Adafruit-SSD1306
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
-import smbus2                                   #Install smbus2; sudo pip3 install smbus2
-import config
+
 
 numofdisplays = config.numofdisplays
 iterations = 5
@@ -32,14 +38,15 @@ disp = Adafruit_SSD1306.SSD1306_128_64(rst=RST) #128x64 or 128x32 - disp = Adafr
 TCA_ADDR = 0x70                                 #use cmd i2cdetect -y 1 to ensure multiplexer shows up at addr 0x70
 tca = I2C.get_i2c_device(address=TCA_ADDR)
 port = 1                                        #Default port. set to 0 for original RPi or Orange Pi, etc
-bus = smbus2.SMBus(port)                        #From smbus2 set bus number
 
-#Functions for OLED display
+
+
 def tca_select(channel):                        #Used to tell the multiplexer which oled display to send data to.
     #Select an individual channel
     if channel > 7 or numofdisplays < 2:        #Verify we need to use the multiplexer.
         return
     tca.writeRaw8(1 << channel)                 #from Adafruit_GPIO I2C
+
 
 def oledcenter(txt, ch, font, wndir=0, dim=dimswitch, onoff = 0, pause = 0): #Center text vertically and horizontally
     tca_select(ch)                              #Select the display to write to
