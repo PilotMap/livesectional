@@ -569,7 +569,7 @@ while True:
 
     #read airports file - read each time weather is updated in case a change to "airports" file was made while script was running.
     try:
-        with open("airports_original") as f:
+        with open("airports") as f:
             airports = f.readlines()
     except IOError as error:
         logger.error('Airports file could not be loaded.')
