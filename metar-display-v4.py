@@ -105,7 +105,10 @@ try:
     import Adafruit_SSD1306                         #sudo pip3 install Adafruit-SSD1306
 except ImportError:
     logger.error(f"No hardware found")
+    hardware = False
+
 else:
+    hardware = True
     GPIO.setmode(GPIO.BCM)                          #set mode to BCM and use BCM pin numbering, rather than BOARD pin numbering.
     GPIO.setwarnings(False)
 
@@ -330,6 +333,7 @@ def tca_select(channel):                        #Used to tell the multiplexer wh
     tca.writeRaw8(1 << channel)                 #from Adafruit_GPIO I2C
 
 def oledcenter(txt, ch, font, dir=0, dim=dimswitch, onoff = 0, pause = 0): #Center text vertically and horizontally
+
     tca_select(ch)                              #Select the display to write to
     oleddim(dim)                                #Set brightness, 0 = Full bright, 1 = medium bright, 2 = low brightdef oledcenter(txt): #Center text vertically and horizontally
     draw.rectangle((0, 0, width-1, height-1), outline=border, fill=backcolor) #blank the display
@@ -391,6 +395,7 @@ def oledcenter(txt, ch, font, dir=0, dim=dimswitch, onoff = 0, pause = 0): #Cent
 
     time.sleep(pause)                           #pause long enough to be read
 
+
 def winddir(wndir=0):                           #Using the arrows.ttf font return arrow to represent wind direction at airport
     if (wndir >= 338 and wndir <= 360) or (wndir >= 1 and wndir <= 22): #8 arrows representing 45 degrees each around the compass.
         return 'd'                              #wind blowing from the north (pointing down)
@@ -410,6 +415,7 @@ def winddir(wndir=0):                           #Using the arrows.ttf font retur
         return 'h'                              #wind blowing from the north-west (pointing lower-right)
     else:
         return ''                               #No arrow returned
+
 
 def oleddim(level=0): #Dimming routine. 0 = Full Brightness, 1 = low brightness, 2 = medium brightness. See https://www.youtube.com/watch?v=hFpXfSnDNSY a$
     if level == 0: #https://github.com/adafruit/Adafruit_Python_SSD1306/blob/master/Adafruit_SSD1306/SSD1306.py for more info.
@@ -433,6 +439,7 @@ def invertoled(i):                              #Invert display pixels. Normal =
     else:
         disp.command(0xA6)                      #SSD1306_NORMALDISPLAY
 
+
 def rotate180(i):                               #Rotate display 180 degrees to allow mounting of OLED upside down
     if i:
         #Y Direction
@@ -443,6 +450,7 @@ def rotate180(i):                               #Rotate display 180 degrees to a
     else:
         pass
 
+
 def clearoleddisplays():
     for j in range(numofdisplays):
         tca_select(j)
@@ -450,6 +458,7 @@ def clearoleddisplays():
         draw.rectangle((0,0,width-1,height-1), outline=border, fill=backcolor)
         disp.image(image)
         disp.display()
+
 
 #Compare current time plus offset to TAF's time period and return difference
 def comp_time(taf_time):
@@ -1176,154 +1185,8 @@ while True:
     if len(sortwindslist) < numofdisplays:      #Pad blanks if airports are less than numofdisplays
         blank = [('','')] * (numofdisplays - len(sortwindslist))
         sortwindslist = sortwindslist + blank
-    logger.debug(len(sortwindslist))
-    logger.debug(sortwindslist)
+    logger.debug(f"sortwindlist:{sortwindslist}:{len(sortwindslist)}")
     logger.info("Built Wind Dictionary")
-
-    #See http://www.circuitbasics.com/raspberry-pi-lcd-set-up-and-programming-in-python/
-    #Find the top windspeeds and airports and display to LCD if used. Written for a 16x2 display wired in 4 bit format.
-    if lcddisplay:
-        logger.info("LCD Display Being Used")
-        #Bit maps for 8 special characters, Arrows, to display wind direction along with wind speed.
-        #See https://rplcd.readthedocs.io/en/stable/usage.html#creating-custom-characters for more info on creating characters.
-        swarrow = (
-            0b00000,
-            0b01111,
-            0b00011,
-            0b00101,
-            0b01001,
-            0b10000,
-            0b00000,
-            0b00000
-        )
-
-        nwarrow = (
-            0b00000,
-            0b00000,
-            0b10000,
-            0b01001,
-            0b00101,
-            0b00011,
-            0b01111,
-            0b00000
-        )
-
-        nearrow = (
-            0b00000,
-            0b00000,
-            0b00001,
-            0b10010,
-            0b10100,
-            0b11000,
-            0b11110,
-            0b00000
-        )
-
-        searrow = (
-            0b00000,
-            0b11110,
-            0b11000,
-            0b10100,
-            0b10010,
-            0b00001,
-            0b00000,
-            0b00000
-        )
-
-        northarrow = (
-            0b00000,
-            0b00100,
-            0b00100,
-            0b00100,
-            0b10101,
-            0b01110,
-            0b00100,
-            0b00000
-        )
-
-        eastarrow = (
-            0b00000,
-            0b00000,
-            0b00100,
-            0b01000,
-            0b11111,
-            0b01000,
-            0b00100,
-            0b00000
-        )
-
-        southarrow = (
-            0b00000,
-            0b00100,
-            0b01110,
-            0b10101,
-            0b00100,
-            0b00100,
-            0b00100,
-            0b00000
-        )
-
-        westarrow = (
-            0b00000,
-            0b00000,
-            0b00100,
-            0b00010,
-            0b11111,
-            0b00010,
-            0b00100,
-            0b00000
-        )
-
-        long_string = "Winds Updated " + dt_string + "--"
-
-        #Build the instance of LCD. Be sure to include "compat_mode = True" to eliminate extraneous characters on the display.
-        lcd = CharLCD(numbering_mode=GPIO.BCM, cols=16, rows=2, pin_rs=26, pin_e=19, pins_data=[13, 6, 5 ,11], compat_mode = True)
-        lcd.clear()
-        lcd.cursor_mode = 'hide'
-
-        #Create special Characters using bitmaps above. See https://rplcd.readthedocs.io/en/stable/usage.html#creating-custom-characters
-        lcd.create_char(0,swarrow)
-        lcd.create_char(1,nwarrow)
-        lcd.create_char(2,nearrow)
-        lcd.create_char(3,searrow)
-        lcd.create_char(4,northarrow)
-        lcd.create_char(5,eastarrow)
-        lcd.create_char(6,southarrow)
-        lcd.create_char(7,westarrow)
-
-        for ap,wnd in sortwindslist:            #airport and winds
-            dir = wnddirdict.get(ap)            #get wind direction by airport
-            arrowdir = winddir(dir)             #get proper proper arrow to display
-
-            #Determine wind direction and assign proper arrow direction
-            if arrowdir == 'd':                 #From North
-                arrow = '\x04'
-            elif arrowdir == 'f':               #From North East
-                arrow = '\x02'
-            elif arrowdir == 'b':               #From East
-                arrow = '\x05'
-            elif arrowdir == 'e':               #From South East
-                arrow = '\x03'
-            elif arrowdir == 'c':               #From South
-                arrow = '\x06'
-            elif arrowdir == 'g':               #From South West
-                arrow = '\x00'
-            elif arrowdir == 'a':               #From West
-                arrow = '\x07'
-            elif arrowdir == 'h':               #From North West
-                arrow = '\x01'
-            else:
-                arrow = ''                      #No arrow returned
-
-            if ap != '':                        #check to see if there is an airport to display
-                long_string = long_string + ap + ":" + str(wnd) + "kts " + arrow + "  "
-
-        logger.debug(long_string)
-
-        if abovekts:                            #check to see if we should only display airports whose winds are higher than 'minwinds'
-            framebuffer = [str(minwinds) + ' kts or Above','']
-        else:
-            framebuffer = [str(num2display) + ' Highest Winds','']
 
     #OLED Display
     if oledused:
@@ -1331,14 +1194,16 @@ while True:
         #Reference material; https://pillow.readthedocs.io/en/stable/reference
         #Initialize library.
         for j in range(numofdisplays):
-            tca_select(j)                       #select display to write to
-            disp.begin()
+            if hardware:
+                tca_select(j)                       #select display to write to
+                disp.begin()
 
-        disp.display()
+        if hardware:
+            disp.display()
 
         #Create blank image for drawing.
-        width = disp.width
-        height = disp.height
+        width = disp.width if hardware else 200
+        height = disp.height if hardware else 200
         image = Image.new('1', (width, height)) #Make sure to create image with mode '1' for 1-bit color.
 
         #Get drawing object to draw on image.
@@ -1480,19 +1345,12 @@ while True:
         if oledused:
             clearoleddisplays()
 
-        if lcddisplay:
-            lcd.clear()
 
     timeout_start = time.time()                 #When timer hits user-defined value, go back to outer loop to update FAA Weather.
     while time.time() < timeout_start + (update_interval * 60): #take "update_interval" which is in minutes and turn into seconds
 
         #If the rotary switch is in Heat Map Mode, display such on the displays.
         if metar_taf_mos == 3:
-            if lcddisplay:
-                lcd.clear()
-                lcd.cursor_mode = 'hide'
-                loop_string("Heat Map Mode", lcd, framebuffer, 1, 16, lcdpause)
-
             if oledused:                        #Display top AP Landings list on oleds
                 arrowdir = ''
                 dimming = 0
@@ -1540,9 +1398,6 @@ while True:
                     temp_lights_on = 0
 
                 logger.info("Display Going to Sleep")
-
-                if lcddisplay:
-                    lcd.clear()
 
                 if oledused:
                     tmp1 = border
@@ -1689,11 +1544,6 @@ while True:
 
         if lcddisplay:
             print ("Display on a LCD display")
-
-            #Below creates a scrolling effect of the X highest winds, updated every 15 minutes (update_interval)
-            lcd.clear()
-            lcd.cursor_mode = 'hide'
-            loop_string(long_string, lcd, framebuffer, 1, 16, lcdpause)
 
         #Display information via OLED
         if oledused and metar_taf_mos != 3 and toggle_sw != -1:
