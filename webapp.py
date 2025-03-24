@@ -1,194 +1,252 @@
+# webapp.py - v4, by Mark Harris. Web Based Configurator for LiveSectional - Using Flask and Python
+#     Updated to work with New FAA API: 10-2023. Thank you to user Marty for all the hardwork.
+#     Updated to work with Python 3
+#     3 editors for Config.py, Airports, and Heat Map.
+#     This version includes color picker
+#     This version adds ability to TAB between airport textboxes.
+#     Added Logging capabilities which is stored in /NeoSectional/logfile.log
+#     Added routine to grab airport details, i.e. City and State to display.
+#     Added admin feature that will list IP address of running RPI to ftp server with drop down to pick from.
+#     Added ability to load a profile into Settings Editor/
+#     Added System Info Page Display
+#     Added internet check and recheck if not currently available
+#     Added User App to control map that doesn't have a Rotary Switch.
+#     Added QR Code generator to help user load app on phone.
+#     Fixed bug where the url was getting appended to rather than replaced.
+#     Added Web based software update checker and file updater
+#     Added import file ability for Airports and Heat Map Data
+#     Fixed bug when page is loaded directly from URL box rather than the loaded page.
+#     Added menu item to manually check for an update
+#     Added menu items to display logfile.log, and console output (requires modified version of seashells
+#     Added LiveSectional Web Map, which recreates the builders map online.
+#     Fixed bug where get_led_map_info() would not get lat/Lon from XML file.
+#     Thank you Daniel from pilotmap.co for the change the routine that handles maps with more than 300 airports.
+#     Added counter to quit the script if FAA data (internet) is not available. Will try 10 times before quitting.
+
+# print test #force bug to cause webapp.py to error out
+
+# import needed libraries
+#   To install, sudo pip3 install flask
+from flask import Flask, render_template, request, flash, redirect, url_for, send_file, Response
+from werkzeug.utils import secure_filename
+#    if URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] try;
+#    $ sudo update-ca-certificates --fresh
+#    $ export SSL_CERT_DIR=/etc/ssl/certs
+import urllib.request, urllib.error, urllib.parse
+import xml.etree.ElementTree as ET
+from datetime import datetime
+import time
 import os
 import sys
-import wget
-import json
-import time
-import arrow
-import socket
-import shutil
-import logzero
-import logging
-import zipfile
-import requests
 import subprocess
-
+import shutil
+import wget
+import zipfile
 import folium
 import folium.plugins
+from folium.features import CustomIcon
 from folium.features import DivIcon
+from folium.vector_layers import Circle, CircleMarker, PolyLine, Polygon, Rectangle
+import requests
+import json
 
-import xml.etree.ElementTree as ET
-import urllib.request, urllib.error, urllib.parse
-
-from logzero   import logger
-from itertools import islice
-from datetime  import datetime
-from flask     import Flask, render_template, request, flash, redirect, send_file, Response
-
-# Local imports
-import admin
+# from neopixel import * # works with python 2.7
+from rpi_ws281x import * # works with python 3.7. sudo pip3 install rpi_ws281x
+import socket
+import logging
+import logzero
+from logzero import logger
 import config
-#import scan_network
-from log  import logger
-from leds import LedStrip, Color
+import admin
+import scan_network
 
-PATH = '.'
-airports_file  = f'{PATH}/airports'
-airports_bkup  = f'{PATH}/airports-bkup'
-settings_file  = f'{PATH}/config.py'
-settings_bkup  = f'{PATH}/config-bkup.py'
-heatmap_file   = f'{PATH}/hmdata'
-local_ftp_file = f'{PATH}/lsinfo.txt'
+###################
+from itertools import islice # Thanks Daniel
+###################
 
-settings    = {}
-airports    = []
-hmdata      = []
-datalist    = []
-newlist     = []
+# Setup rotating logfile with 3 rotations, each with a maximum filesize of 1MB:
+map_name = admin.map_name
+version = admin.version          # Software version
+loglevel = config.loglevel
+loglevels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
+logzero.loglevel(loglevels[loglevel])  # Choices in order; DEBUG, INFO, WARNING, ERROR
+logzero.logfile("/NeoSectional/logfile.log", maxBytes=1e6, backupCount=1)
+logger.info("\n\nStartup of metar-v4.py Script, Version " + version)
+logger.info("Log Level Set To: " + str(loglevels[loglevel]))
+
+# setup variables
+#useip2ftp = admin.use_ftp           # OBSOLETE 0 = No, 1 = Yes. Use IP to FTP for multiple boards on local network admin.
+airports_file = '/NeoSectional/airports'
+airports_bkup = '/NeoSectional/airports-bkup'
+settings_file = '/NeoSectional/config.py'
+settings_bkup = '/NeoSectional/config-bkup.py'
+heatmap_file = '/NeoSectional/hmdata'
+local_ftp_file = '/NeoSectional/lsinfo.txt'
+settings = {}
+airports = []
+hmdata = []
+datalist = []
+newlist = []
 ipaddresses = []
 current_timezone = ''
-loc         = {}
-machines    = []
-lat_list    = []
-lon_list    = []
-max_lat     = ''
-min_lat     = ''
-max_lon     = ''
-min_lon     = ''
+loc = {}
+machines = []
+lat_list = []
+lon_list = []
+max_lat = ''
+min_lat = ''
+max_lon = ''
+min_lon = ''
 
-max_api_airports = 300
+################
+# misc variables
+################
+max_api_airports = 300          # The max amount of airports from api with one request - Thanks Daniel pilotmap.co
 
 # Settings for web based file updating
-src         = f'{PATH}/'                        # Main directory, /NeoSectional
-dest        = f'{PATH}/backup/previousversion'  # Directory to store currently run version of software
+src = '/NeoSectional'                           # Main directory, /NeoSectional
+dest = '../previousversion'                     # Directory to store currently run version of software
 verfilename = 'version.py'                      # Version Filename
 zipfilename = 'ls.zip'                          # File that holds the names of all the files that need to be updated
 source_path = 'http://www.livesectional.com/liveupdate/neoupdate/'
-target_path = f'{PATH}/'
-
+target_path = '/NeoSectional/'
 update_available = 0                            # 0 = No update available, 1 = Yes update available
 update_vers = "4.000"                           # initiate variable
 
-# Used to capture station information for airport id decode for tooltip display in web pages.
+# Used to capture staton information for airport id decode for tooltip display in web pages.
 apinfo_dict = {}
-orig_apurl  = "https://aviationweather.gov/api/data/stationinfo?format=xml&ids="
+#orig_apurl = "https://aviationweather-cprk.ncep.noaa.gov/adds/dataserver_current/httpparam?dataSource=stations&requestType=retrieve&format=xml&stationString="
+orig_apurl = "https://aviationweather.gov/api/data/stationinfo?format=xml&ids="
+logger.debug(orig_apurl)
 
 #Used to display weather and airport locations on a map
 led_map_dict = {}
+#led_map_url = "https://aviationweather-cprk.ncep.noaa.gov/adds/dataserver_current/httpparam?dataSource=metars&requestType=retrieve&format=json&hoursBeforeNow=2.5&mostRecentForEachStation=constraint&stationString="
+#led_map_url = "https://aviationweather-cprk.ncep.noaa.gov/adds/dataserver_current/httpparam?dataSource=metars&requestType=retrieve&format=xml&hoursBeforeNow=2.5&mostRecentForEachStation=constraint&stationString="
 led_map_url = "https://aviationweather.gov/api/data/metar?format=xml&hours=2.5&ids="
+logger.debug(led_map_url)
 
+# LED strip configuration:
+LED_COUNT      = 500            # Max Number of LED pixels.
+LED_PIN        = 18             # GPIO pin connected to the pixels (18 uses PWM!).
+LED_FREQ_HZ    = 800000         # LED signal frequency in hertz (usually 800khz)
+LED_DMA        = 5              # DMA channel to use for generating signal (try 5)
+LED_BRIGHTNESS = 255            # Set to 0 for darkest and 255 for brightest
+LED_INVERT     = False          # True to invert the signal (when using NPN transistor level shift)
+LED_CHANNEL    = 0              # set to '1' for GPIOs 13, 19, 41, 45 or 53
+LED_STRIP      = ws.WS2811_STRIP_RGB   # Strip type and colour ordering
+
+# instantiate strip
+strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, LED_STRIP)
+strip.begin()
+
+# misc variables
+color = Color(255,255,255)      # Color to display when cycling through LED's. White is the default.
+black_color = Color(0,0,0)      # Color Black used to turn off the LED.
+num = 0
 now = datetime.now()
 timestr = (now.strftime("%H:%M:%S - %b %d, %Y"))
+logger.debug(timestr)
 delay_time = 5                  # Delay in seconds between checking for internet availablility.
 num = 0                         # initialize num for airports editor
 ipadd = ''
-
-
-strip = LedStrip(config.LED_COUNT)
-
 
 # Initiate flash session
 app = Flask(__name__)
 app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'
 
-map_name = admin.map_name
-version = admin.version
-
 logger.info("Settings and Flask Have Been Setup")
 
+
+##########
+# Routes #
+##########
 
 # Routes for Map Display - Testing
 @app.route('/map1', methods=["GET", "POST"])
 def map1():
     start_coords = (35.1738, -111.6541)
-    folium_map = folium.Map(location=start_coords,
-                            zoom_start = 6,
-                            height='80%',
-                            width='100%',
-                            control_scale = True,
-                            zoom_control = True,
+    folium_map = folium.Map(location=start_coords, \
+                            zoom_start = 6, height='80%', width='100%', \
+                            control_scale = True, \
+                            zoom_control = True, \
                             tiles = 'OpenStreetMap')
 
     folium_map.add_child(folium.LatLngPopup())
     folium_map.add_child(folium.ClickForMarker(popup='Marker'))
     folium.plugins.Geocoder().add_to(folium_map)
 
-    folium.TileLayer('http://wms.chartbundle.com/tms/1.0.0/sec/{z}/{x}/{y}.png?origin=nw',
-                     attr='chartbundle.com', name='ChartBundle Sectional').add_to(folium_map)
-
+    folium.TileLayer('http://wms.chartbundle.com/tms/1.0.0/sec/{z}/{x}/{y}.png?origin=nw', attr='chartbundle.com', name='ChartBundle Sectional').add_to(folium_map)
     folium.TileLayer('Stamen Terrain', name='Stamen Terrain').add_to(folium_map)
     folium.TileLayer('CartoDB positron', name='CartoDB Positron').add_to(folium_map)
     # other mapping code (e.g. lines, markers etc.)
     folium.LayerControl().add_to(folium_map)
 
-    folium_map.save(f'{PATH}/templates/map.html')
+    folium_map.save('../../NeoSectional/templates/map.html')
     return render_template('mapedit.html', title='Map', num = 5)
+#    return folium_map._repr_html_()
 
 
 @app.route('/touchscr', methods=["GET", "POST"])
 def touchscr():
-    return render_template('touchscr.html',
-                           title = 'Touch Screen',
-                           num = 5,
-                           machines = machines,
-                           ipadd = ipadd)
+    return render_template('touchscr.html', title = 'Touch Screen', num = 5, machines = machines, ipadd = ipadd)
 
 
+# Route to open live console display window using seashells dependency - TESTING
+# Uses the dependency, 'seashells' to display console data to web page. Follow the steps at
+# https://seashells.io/ to install. THEN MUST ADD THE FOLLOWING CODE to copy seashell url to file.
+# AT FILE LOCATION; sudo nano -c /usr/local/lib/python3.7/dist-packages/seashells/__init__.py
+# On line 50 add this to the parser routine
+#        parser.add_argument('-s', '--script', type=str, default='webapp',
+#            help='Capture console stream from livesectional')
+#
+# On line 96 add this routine
+#        # write ip address to file - Mark Harris
+#        ipadd = data.decode()
+#        ipadd = ipadd[11:]
+#        script_name = args.script
+#        if script_name == 'webapp':
+#            f = open("/NeoSectional/console_ip.txt", "w")
+#            f.write(script_name + " " + ipadd)
+#            f.close()
 @app.route('/open_console', methods=["GET", "POST"])
 def open_console():
     console_ips = []
-    with open(f"{PATH}/console_ip.txt", "r") as file:
+    with open("/NeoSectional/console_ip.txt", "r") as file:
         for line in (file.readlines() [-1:]):
             line = line.rstrip()
             console_ips.append(line)
     logger.info("Opening open_console in separate window")
-    return render_template('open_console.html',
-                           urls = console_ips,
-                           title = 'Display Console Output-'+version, num = 5,
-                           machines = machines,
-                           ipadd = ipadd,
-                           timestr = timestr)
+    return render_template('open_console.html', urls = console_ips, title = 'Display Console Output-'+version, num = 5, machines = machines, ipadd = ipadd, timestr = timestr)
 
-
+# Routes to display logfile live, and hopefully for a dashboard
 @app.route('/stream_log', methods=["GET", "POST"])
 def stream_log():
-    """
-    # Routes to display logfile live, and hopefully for a dashboard
-    :return:
-    """
     global ipadd
     global timestr
     logger.info("Opening stream_log in separate window")
-    return render_template('stream_log.html',
-                           title = 'Display Logfile-'+version,
-                           num = 5,
-                           machines = machines,
-                           ipadd = ipadd,
-                           timestr = timestr)
+    return render_template('stream_log.html', title = 'Display Logfile-'+version, num = 5, machines = machines, ipadd = ipadd, timestr = timestr)
 
-
-@app.route('/stream_log1', methods=["GET", "POST"])
+@app.route('/stream_log1', methods=["GET", "POST"]) # Alternate route. Not currently used
 def stream_log1():
     def generate():
-        with open(f'{PATH}/logfile.log') as f:
+        with open('/NeoSectional/logfile.log') as f:
             while True:
                 yield "{}\n".format(f.read())
                 time.sleep(1)
 
     return app.response_class(generate(), mimetype='text/plain')
 
-
+# Route to manually check for update using menu item
 @app.route('/test_for_update', methods=["GET", "POST"])
 def test_for_update():
-    """
-     Route to manually check for update using menu item
-    :return:
-    """
     global update_available
     url = request.referrer
     if url is None:
         url = 'http://' + ipadd + ':5000/index'  # Use index if called from URL and not page.
 
     temp = url.split('/')
+
     testupdate()
 
     if update_available == 0:
@@ -203,25 +261,15 @@ def test_for_update():
     logger.info('Checking to see if there is an update available')
     return redirect(temp[3])  # temp[3] holds name of page that called this route.
 
-
+# Route to update Software if one is available and user chooses to update
 @app.route('/update_info', methods=["GET", "POST"])
 def update_info():
-    """
-    Route to update Software if one is available and user chooses to update
-    :return:
-    """
     global ipadd
     global timestr
-    with open(f"{PATH}/update_info.txt","r") as file:
+    with open("/NeoSectional/update_info.txt","r") as file:
         content = file.readlines()
         logger.debug(content)
-    return render_template("update_info.html",
-                           content = content,
-                           title = 'Update Info-'+version, num = 5,
-                           machines = machines,
-                           ipadd = ipadd,
-                           timestr = timestr)
-
+    return render_template("update_info.html", content = content, title = 'Update Info-'+version, num = 5, machines = machines, ipadd = ipadd, timestr = timestr)
 
 @app.route('/update', methods=["GET", "POST"])
 def update():
@@ -268,6 +316,7 @@ def led_map():
         'ipadd': ipadd,
         'strip': strip,
         'ipaddresses': ipaddresses,
+        'timestr': timestr,
         'num': num,
         'apinfo_dict': apinfo_dict,
         'led_map_dict': led_map_dict,
@@ -292,12 +341,10 @@ def led_map():
     start_coords = ((float(max_lat)+float(min_lat))/2, (float(max_lon)+float(min_lon))/2)
 
     # Initialize Map
-    folium_map = folium.Map(location=start_coords,
-                            zoom_start = 5,
-                            height='100%',
-                            width='100%',
-                            control_scale = True,
-                            zoom_control = True,
+    folium_map = folium.Map(location=start_coords, \
+                            zoom_start = 5, height='100%', width='100%', \
+                            control_scale = True, \
+                            zoom_control = True, \
                             tiles = 'OpenStreetMap')
 
     # Place map within bounds of screen
@@ -331,6 +378,10 @@ def led_map():
             popup = ""
             pass
 
+        #        pop_url = '<a href="https://nfdc.faa.gov/nfdcApps/services/ajv5/airportDisplay.jsp?airportId='+led_ap+'"target="_blank">'
+        #        popup = pop_url+"<b>"+led_ap+"</b><br>"+apinfo_dict[led_ap][0]+',&nbsp'+apinfo_dict[led_ap][1]\
+        #                +"</a><br>Pin&nbspNumber&nbsp=&nbsp"+str(pin_num)+"<br><b><font size=+2 color="+color+">"+led_map_dict[led_ap][2]+"</font></b>"
+
         # Add airport markers with proper color to denote flight category
         folium.CircleMarker(
             radius=7,
@@ -341,6 +392,23 @@ def led_map():
             tooltip=str(led_ap)+"<br>Pin "+str(pin_num),
             weight=6,
         ).add_to(folium_map)
+
+
+    #    Custom Icon Code - Here for possible future use
+    #    url = "../../NeoSectional/static/{}".format
+    #    icon_image = url("dot1.gif")
+
+    #    icon = CustomIcon(
+    #        icon_image,
+    #        icon_size=(48, 48),
+    #    )
+
+    #    marker = folium.Marker(
+    #        location=[45.3288, -121.6625], icon=icon, popup="Mt. Hood Meadows"
+    #    )
+
+    #    folium_map.add_child(marker)
+
 
     # Add lines between airports. Must make lat/lons floats otherwise recursion error occurs.
     for pin_ap in airports:
@@ -354,14 +422,17 @@ def led_map():
     # Add Title to the top of the map
     folium.map.Marker(
         title_coords,
-        icon=DivIcon( icon_size=(500,36),
-                      icon_anchor=(150,64),
-                      html='<div style="font-size: 24pt"><b>LiveSectional Map Layout</b></div>',
-                      )
+        icon=DivIcon(
+            icon_size=(500,36),
+            icon_anchor=(150,64),
+            html='<div style="font-size: 24pt"><b>LiveSectional Map Layout</b></div>',
+        )
     ).add_to(folium_map)
 
     # Extra features to add if desired
     folium_map.add_child(folium.LatLngPopup())
+    #    folium.plugins.Terminator().add_to(folium_map)
+    #    folium_map.add_child(folium.ClickForMarker(popup='Marker'))
     folium.plugins.Geocoder().add_to(folium_map)
 
     folium.plugins.Fullscreen(
@@ -374,9 +445,10 @@ def led_map():
     folium.TileLayer('http://wms.chartbundle.com/tms/1.0.0/sec/{z}/{x}/{y}.png?origin=nw', attr='chartbundle.com', name='ChartBundle Sectional').add_to(folium_map)
     folium.TileLayer('Stamen Terrain', name='Stamen Terrain').add_to(folium_map)
     folium.TileLayer('CartoDB positron', name='CartoDB Positron').add_to(folium_map)
+
     folium.LayerControl().add_to(folium_map)
 
-    folium_map.save(f'{PATH}/templates/map.html')
+    folium_map.save('../../NeoSectional/templates/map.html')
     logger.info("Opening led_map in separate window")
     return render_template('led_map.html', **templateData)
 
@@ -413,6 +485,7 @@ def expandfs():
             'ipadd': ipadd,
             'strip': strip,
             'ipaddresses': ipaddresses,
+            'timestr': timestr,
             'num': num,
             'apinfo_dict': apinfo_dict,
             'timestr': timestr,
@@ -425,7 +498,6 @@ def expandfs():
         }
         logger.info("Opening expand file system page")
         return render_template('expandfs.html', **templateData)
-
 
 # Route to display and change Time Zone information.
 @app.route('/tzset', methods=["GET", "POST"])
@@ -443,7 +515,8 @@ def tzset():
     global map_name
     global current_timezone
 
-    timestr = datetime.now().strftime("%H:%M:%S - %b %d, %Y")
+    now = datetime.now()
+    timestr = (now.strftime("%H:%M:%S - %b %d, %Y"))
     currtzinfolist = []
 
     if request.method == "POST":
@@ -471,6 +544,7 @@ def tzset():
         'ipadd': ipadd,
         'strip': strip,
         'ipaddresses': ipaddresses,
+        'timestr': timestr,
         'num': num,
         'apinfo_dict': apinfo_dict,
         'timestr': timestr,
@@ -487,13 +561,12 @@ def tzset():
     logger.info("Opening Time Zone Set page")
     return render_template('tzset.html', **templateData)
 
-
 # Route to display system information.
 @app.route('/yield')
 def yindex():
     def inner():
         proc = subprocess.Popen(
-            [f'{PATH}//info-v4.py'],             # 'dmesg' call something with a lot of output so we can see it
+            ['/NeoSectional/info-v4.py'],             # 'dmesg' call something with a lot of output so we can see it
             shell=True,
             stdout=subprocess.PIPE
         )
@@ -506,7 +579,6 @@ def yindex():
     logger.info("Opening yeild to display system info in separate window")
     return Response(inner(), mimetype='text/html')  # text/html is required for most browsers to show this info.
 
-
 # Route to create QR Code to display next to map so user can use an app to control the map
 @app.route('/qrcode', methods=["GET", "POST"])
 def qrcode():
@@ -514,7 +586,6 @@ def qrcode():
     qraddress = 'http://' + ipadd.strip() + ':5000/lsremote'
     logger.info("Opening qrcode in separate window")
     return render_template('qrcode.html', qraddress = qraddress)
-
 
 #Routes for homepage
 @app.route('/', methods=["GET", "POST"])
@@ -528,10 +599,12 @@ def index ():
     global ipadd
     global strip
     global ipaddresses
+    global timestr
     global version
     global map_name
 
-    timestr = datetime.now().strftime("%H:%M:%S - %b %d, %Y")
+    now = datetime.now()
+    timestr = (now.strftime("%H:%M:%S - %b %d, %Y"))
 
     templateData = {
         'title': 'LiveSectional Home-'+version,
@@ -541,6 +614,7 @@ def index ():
         'ipadd': ipadd,
         'strip': strip,
         'ipaddresses': ipaddresses,
+        'timestr': timestr,
         'num': num,
         'apinfo_dict': apinfo_dict,
         'timestr': timestr,
@@ -556,7 +630,6 @@ def index ():
     logger.info("Opening Home Page/Index")
     return render_template('index.html', **templateData)
 
-
 # Routes to download airports, logfile.log and config.py to local computer
 @app.route('/download_ap', methods=["GET", "POST"])
 def downloadairports ():
@@ -564,13 +637,11 @@ def downloadairports ():
     path = "airports"
     return send_file(path, as_attachment=True)
 
-
 @app.route('/download_cf', methods=["GET", "POST"])
 def downloadconfig ():
     logger.info("Downloaded Config File")
     path = "config.py"
     return send_file(path, as_attachment=True)
-
 
 @app.route('/download_log', methods=["GET", "POST"])
 def downloadlog ():
@@ -578,13 +649,11 @@ def downloadlog ():
     path = "logfile.log"
     return send_file(path, as_attachment=True)
 
-
 @app.route('/download_hm', methods=["GET", "POST"])
 def downloadhm ():
     logger.info("Downloaded Heat Map data file")
     path = "hmdata"
     return send_file(path, as_attachment=True)
-
 
 # Routes for Heat Map Editor
 @app.route("/hmedit", methods=["GET", "POST"])
@@ -595,10 +664,13 @@ def hmedit():
     global ipadd
     global strip
     global ipaddresses
+    global timestr
     global map_name
+    now = datetime.now()
+    timestr = (now.strftime("%H:%M:%S - %b %d, %Y"))
 
-    timestr  = datetime.now().strftime("%H:%M:%S - %b %d, %Y")
     readhmdata(heatmap_file)  # read Heat Map data file
+
     logger.debug(ipadd)  # debug to display ip address on console
 
     templateData = {
@@ -617,7 +689,6 @@ def hmedit():
         'map_name':map_name
     }
     return render_template('hmedit.html', **templateData)
-
 
 @app.route("/hmpost", methods=["GET", "POST"])
 def handle_hmpost_request():
@@ -650,7 +721,6 @@ def handle_hmpost_request():
     flash('Heat Map Data Successfully Saved')
     return redirect("hmedit")
 
-
 # Import a file to populate Heat Map Data. Must Save Airports to keep
 @app.route("/importhm", methods=["GET", "POST"])
 def importhm():
@@ -663,13 +733,13 @@ def importhm():
 
     if 'file' not in request.files:
         flash('No File Selected')
-        return redirect(f'{PATH}/hmedit')
+        return redirect('./hmedit')
 
     file = request.files['file']
 
     if file.filename == '':
         flash('No File Selected')
-        return redirect(f'{PATH}/hmedit')
+        return redirect('./hmedit')
 
     filedata = file.read()
     tmphmdata = bytes.decode(filedata)
@@ -695,18 +765,21 @@ def importhm():
     flash('Heat Map Imported - Click "Save Heat Map File" to save')
     return render_template("hmedit.html", **templateData)
 
-
 # Routes for Airport Editor
 @app.route("/apedit", methods=["GET", "POST"])
 def apedit():
     logger.info("Opening apedit.html")
     global airports
+    global strip
     global num
     global ipadd
+    global strip
     global ipaddresses
+    global timestr
     global map_name
 
-    timestr = datetime.now().strftime("%H:%M:%S - %b %d, %Y")
+    now = datetime.now()
+    timestr = (now.strftime("%H:%M:%S - %b %d, %Y"))
 
     readairports(airports_file)  # Read airports file.
 
@@ -728,7 +801,6 @@ def apedit():
         'map_name':map_name
     }
     return render_template('apedit.html', **templateData)
-
 
 @app.route("/numap", methods=["GET", "POST"])
 def numap():
@@ -768,7 +840,6 @@ def numap():
     flash('Number of LEDs Updated - Click "Save Airports" to save.')
     return render_template('apedit.html', **templateData)
 
-
 @app.route("/appost", methods=["GET", "POST"])
 def handle_appost_request():
     logger.info("Saving Airport File")
@@ -778,6 +849,7 @@ def handle_appost_request():
     global num
     global ipadd
     global ipaddresses
+    global timestr
 
     if request.method == "POST":
         data = request.form.to_dict()
@@ -806,7 +878,6 @@ def handle_appost_request():
     flash('Airports Successfully Saved')
     return redirect("apedit")
 
-
 @app.route("/ledonoff", methods=["GET", "POST"])
 def ledonoff():
     logger.info("Controlling LED's on/off")
@@ -817,9 +888,9 @@ def ledonoff():
     global ipaddresses
     global timestr
 
-    for i in range(strip.number):
-        strip.set_pixel_color(i, Color(0,0,0))
-    strip.show_pixels()
+    for i in range(strip.numPixels()):
+        strip.setPixelColor(i, Color(0,0,0))
+    strip.show()
 
     if request.method == "POST":
 
@@ -828,41 +899,41 @@ def ledonoff():
         if "buton" in request.form:
             num = int(request.form['lednum'])
             logger.info("LED " + str(num) + " On")
-            strip.set_pixel_color(num, Color(155,155,155))
-            strip.show_pixels()
+            strip.setPixelColor(num, Color(155,155,155))
+            strip.show()
             flash('LED ' + str(num) + ' On')
 
         elif "butoff" in request.form:
             num = int(request.form['lednum'])
             logger.info("LED " + str(num) + " Off")
-            strip.set_pixel_color(num, Color(0,0,0))
-            strip.show_pixels()
+            strip.setPixelColor(num, Color(0,0,0))
+            strip.show()
             flash('LED ' + str(num) + ' Off')
 
         elif "butup" in request.form:
             logger.info("LED UP")
             num = int(request.form['lednum'])
-            strip.set_pixel_color(num, Color(0,0,0))
+            strip.setPixelColor(num, Color(0,0,0))
             num = num + 1
 
             if num > len(airports):
                 num = len(airports)
 
-            strip.set_pixel_color(num, Color(155,155,155))
-            strip.show_pixels()
+            strip.setPixelColor(num, Color(155,155,155))
+            strip.show()
             flash('LED ' + str(num) + ' should be On')
 
         elif "butdown" in request.form:
             logger.info("LED DOWN")
             num = int(request.form['lednum'])
-            strip.set_pixel_color(num, Color(0,0,0))
+            strip.setPixelColor(num, Color(0,0,0))
 
             num = num - 1
             if num < 0:
                 num = 0
 
-            strip.set_pixel_color(num, Color(155,155,155))
-            strip.show_pixels()
+            strip.setPixelColor(num, Color(155,155,155))
+            strip.show()
             flash('LED ' + str(num) + ' should be On')
 
         elif "butall" in request.form:
@@ -870,8 +941,8 @@ def ledonoff():
             num = int(request.form['lednum'])
 
             for num in range(len(airports)):
-                strip.set_pixel_color(num, Color(155,155,155))
-            strip.show_pixels()
+                strip.setPixelColor(num, Color(155,155,155))
+            strip.show()
             flash('All LEDs should be On')
             num=0
 
@@ -880,8 +951,8 @@ def ledonoff():
             num = int(request.form['lednum'])
 
             for num in range(len(airports)):
-                strip.set_pixel_color(num, Color(0,0,0))
-            strip.show_pixels()
+                strip.setPixelColor(num, Color(0,0,0))
+            strip.show()
             flash('All LEDs should be Off')
             num=0
 
@@ -906,7 +977,6 @@ def ledonoff():
 
     return render_template("apedit.html", **templateData)
 
-
 # Import a file to populate airports. Must Save Airports to keep
 @app.route("/importap", methods=["GET", "POST"])
 def importap():
@@ -917,13 +987,13 @@ def importap():
 
     if 'file' not in request.files:
         flash('No File Selected')
-        return redirect(f'{PATH}/apedit')
+        return redirect('./apedit')
 
     file = request.files['file']
 
     if file.filename == '':
         flash('No File Selected')
-        return redirect(f'{PATH}/apedit')
+        return redirect('./apedit')
 
     filedata = file.read()
     fdata = bytes.decode(filedata)
@@ -948,7 +1018,6 @@ def importap():
     }
     flash('Airports Imported - Click "Save Airports" to save')
     return render_template("apedit.html", **templateData)
-
 
 # Routes for Config Editor
 @app.route("/confedit", methods=["GET", "POST"])
@@ -1064,7 +1133,6 @@ def confedit():
     }
     return render_template('confedit.html', **templateData)
 
-
 @app.route("/post", methods=["GET", "POST"])
 def handle_post_request():
     logger.info("Saving Config File")
@@ -1134,8 +1202,8 @@ def handle_post_request():
         temp = url.split('/')
         return redirect(temp[3])  # temp[3] holds name of page that called this route.
 
-
-# Routes for LSREMOTE - Allow Mobile Device Remote. Thank
+# Routes for LSREMOTE - Allow Mobile Device Remote. Thank Lance
+# @app.route('/', methods=["GET", "POST"])
 @app.route('/lsremote', methods=["GET", "POST"])
 def confeditmobile():
     logger.info("Opening lsremote.html")
@@ -1204,11 +1272,11 @@ def confeditmobile():
         'machines': machines,
 
         # Color Picker Variables to pass
-        'color_vfr_hex'  : color_vfr_hex,
-        'color_mvfr_hex' : color_mvfr_hex,
-        'color_ifr_hex'  : color_ifr_hex,
-        'color_lifr_hex' : color_lifr_hex,
-        'color_nowx_hex' : color_nowx_hex,
+        'color_vfr_hex': color_vfr_hex,
+        'color_mvfr_hex': color_mvfr_hex,
+        'color_ifr_hex': color_ifr_hex,
+        'color_lifr_hex': color_lifr_hex,
+        'color_nowx_hex': color_nowx_hex,
         'color_black_hex': color_black_hex,
         'color_lghtn_hex': color_lghtn_hex,
         'color_snow1_hex': color_snow1_hex,
@@ -1246,7 +1314,6 @@ def confeditmobile():
     }
     return render_template('lsremote.html', **templateData)
 
-
 # Import Config file. Must Save Config File to make permenant
 @app.route("/importconf", methods=["GET", "POST"])
 def importconf():
@@ -1259,13 +1326,13 @@ def importconf():
 
     if 'file' not in request.files:
         flash('No File Selected')
-        return redirect(f'{PATH}/confedit')
+        return redirect('./confedit')
 
     file = request.files['file']
 
     if file.filename == '':
         flash('No File Selected')
-        return redirect(f'{PATH}/confedit')
+        return redirect('./confedit')
 
     filedata = file.read()
     fdata = bytes.decode(filedata)
@@ -1285,16 +1352,14 @@ def importconf():
 
     logger.debug(settings)
     flash('Config File Imported - Click "Save Config File" to save')
-    return redirect(f'{PATH}/confedit')
-
+    return redirect('./confedit')
 
 # Restore config.py settings
 @app.route("/restoreconf", methods=["GET", "POST"])
 def restoreconf():
     logger.info("Restoring Config Settings")
     readconf(settings_file)  # read config file
-    return redirect(f'{PATH}/confedit')
-
+    return redirect('./confedit')
 
 # Loads the profile into the Settings Editor, but does not save it.
 @app.route("/profiles", methods=["GET", "POST"])
@@ -1306,13 +1371,12 @@ def profiles():
     print(req_profile)
     print(config_profiles)
     tmp_profile = config_profiles[req_profile]
-    stored_profile = f'{PATH}//profiles/' + tmp_profile
+    stored_profile = '/NeoSectional/profiles/' + tmp_profile
 
     flash(tmp_profile + ' Profile Loaded. Review And Tweak The Settings As Desired. Must Be Saved!')
     readconf(stored_profile)    # read profile config file
     logger.info("Loading a Profile into Settings Editor")
     return redirect('confedit')
-
 
 # Route for Reboot of RPI
 @app.route("/reboot1", methods=["GET", "POST"])
@@ -1327,7 +1391,6 @@ def reboot1():
     os.system('sudo shutdown -r now')
     return redirect(temp[3])  # temp[3] holds name of page that called this route.
 
-
 # Route to startup map and displays
 @app.route("/startup1", methods=["GET", "POST"])
 def startup1():
@@ -1337,12 +1400,10 @@ def startup1():
 
     temp = url.split('/')
     logger.info("Startup Map from " + url)
-    os.system('sudo python3 .//startup.py run &')
+    os.system('sudo python3 /NeoSectional/startup.py run &')
     flash("Map Turned On ")
     time.sleep(1)
     return redirect(temp[3])  # temp[3] holds name of page that called this route.
-
-
 
 # Route to turn off the map and displays
 @app.route("/shutdown1", methods=["GET", "POST"])
@@ -1353,16 +1414,13 @@ def shutdown1():
 
     temp = url.split('/')
     logger.info("Shutoff Map from " + url)
-    """
-    os.system(f"ps -ef | grep {PATH}/metar-display-v4.py' | awk '/{print $2/}' | xargs sudo kill")
-    os.system(f"ps -ef | grep {PATH}/metar-v4.py' | awk '{print $2}' | xargs sudo kill")
-    os.system(f"ps -ef | grep {PATH}/check-display.py' | awk '{print $2}' | xargs sudo kill")
-    os.system('sudo python3 {PATH}/shutoff.py &')
-    """
+    os.system("ps -ef | grep '/NeoSectional/metar-display-v4.py' | awk '{print $2}' | xargs sudo kill")
+    os.system("ps -ef | grep '/NeoSectional/metar-v4.py' | awk '{print $2}' | xargs sudo kill")
+    os.system("ps -ef | grep '/NeoSectional/check-display.py' | awk '{print $2}' | xargs sudo kill")
+    os.system('sudo python3 /NeoSectional/shutoff.py &')
     flash("Map Turned Off ")
     time.sleep(1)
     return redirect(temp[3])  # temp[3] holds name of page that called this route.
-
 
 # Route to power down the RPI
 @app.route("/shutoffnow1", methods=["GET", "POST"])
@@ -1377,7 +1435,6 @@ def shutoffnow1():
     os.system('sudo shutdown -h now')
     return redirect(temp[3])  # temp[3] holds name of page that called this route.
 
-
 # Route to run LED test
 @app.route("/testled", methods=["GET", "POST"])
 def testled():
@@ -1389,9 +1446,8 @@ def testled():
 
     #    flash("Testing LED's")
     logger.info("Running testled.py from " + url)
-    os.system('sudo python3 ./testled.py')
+    os.system('sudo python3 /NeoSectional/testled.py')
     return redirect(temp[3])  # temp[3] holds name of page that called this route.
-
 
 # Route to run OLED test
 @app.route("/testoled", methods=["GET", "POST"])
@@ -1406,7 +1462,7 @@ def testoled():
 
     #    flash("Testing OLEDs ")
     logger.info("Running testoled.py from " + url)
-    os.system(f'sudo python3 {PATH}/testoled.py')
+    os.system('sudo python3 /NeoSectional/testoled.py')
     return redirect(temp[3])  # temp[3] holds name of page that called this route.
 
 
@@ -1424,7 +1480,6 @@ def copy():
     f = open(settings_bkup, "w+")
     f.write(contents)
     f.close()
-
 
 # open and read config.py into settings dictionary
 def readconf(config_file):
@@ -1606,6 +1661,8 @@ def get_apinfo():
     global orig_apurl
     global apinfo_dict
 
+
+    #print (max_api_airports)
     airports_count = len(airports)
 
     print ("Number of airports in the list: ", airports_count)
@@ -1614,7 +1671,7 @@ def get_apinfo():
     tmp_start = 0
     tmp_end = max_api_airports
 
-    while tmp_ap >= 0:
+    while (tmp_ap >= 0):
         print ("tmp_start: ", tmp_start)
         print ("tmp_ap: ", tmp_ap)
         print ("tmp_end: ", tmp_end)
@@ -1644,6 +1701,7 @@ def get_apinfo():
                     internet_test = False
                     print("\n\033[1;32;40mNo Internet - Type 'ctrl-c' then 'sudo raspi-config' to setup WiFi\033[0;0m\n")
                     sys.exit()
+                    break
                 pass
 
         if content == '':  # if FAA data not available bypass getting apinfo
@@ -1675,7 +1733,6 @@ def get_apinfo():
     file.write(content2)
     file.close()
 
-
 # rgb and hex routines
 def rgb2hex(rgb):
     logger.debug(rgb)
@@ -1683,12 +1740,10 @@ def rgb2hex(rgb):
     hex = '#%02x%02x%02x' % (r, g, b)
     return hex
 
-
 def hex2rgb(value):  # from; https://www.codespeedy.com/convert-rgb-to-hex-color-code-in-python/
     value = value.lstrip('#')
     lv = len(value)
     return tuple(int(value[i:i+lv//3], 16) for i in range(0, lv, lv//3))
-
 
 # functions for updating software via web
 def delfile(filename):
@@ -1698,24 +1753,20 @@ def delfile(filename):
     except:
         logger.error("Error while deleting file ", target_path + filename)
 
-
 def unzipfile(filename):
     with zipfile.ZipFile(target_path + filename, 'r') as zip_ref:
         zip_ref.extractall(target_path)
     logger.info('Unzipped ls.zip')
-
 
 def copytoprevdir(src, dest):
     shutil.rmtree(dest)
     shutil.copytree(src,dest)
     logger.info('Copied current version to ../previousversion')
 
-
 def dlftpfile(url, filename):
     wget.download(url, filename)
     print('\n')
     logger.info('Downloaded ' + filename + ' from neoupdate')
-
 
 def updatefiles():
     copytoprevdir(src, dest)                       # This copies current version to ../previousversion before updating files.
@@ -1723,7 +1774,6 @@ def updatefiles():
     unzipfile(zipfilename)                         # Unzip files and overwrite existing older files
     delfile(zipfilename)                           # Delete zip file
     logger.info('Updated New Files')
-
 
 def checkforupdate():
     global update_vers
@@ -1764,7 +1814,6 @@ def testupdate():
         logger.info('Newer Image Available for Download')
         update_available = 2                    # Newer image available
 
-
 # May be used to display user location on map in user interface. - TESTING Not working consistently, not used
 def get_loc():
     loc_data = {}
@@ -1782,14 +1831,41 @@ def get_loc():
     loc[ip_data] = loc_data
 
 
-def setup():
-    """
-    Set up everything.
-    """
+# executed code
+if __name__ == '__main__':
     internet_tries = 10 # number of times to try to access the internet before quitting the script.
+    internet_test = True
 
     # Display active IP address for builder to open up web browser to configure.
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    while True:  # check internet availability and retry if necessary. If house power outage, map may boot quicker than router.
+        try:
+            s.connect(("8.8.8.8", 80))
+            logger.info('Internet Available')
+            break
+
+        except:
+            logger.warning('Internet NOT Available')
+            time.sleep(delay_time)
+            internet_tries -= 1
+            if internet_tries <= 0:
+                internet_test = False
+                print("\n\033[1;32;40mNo Internet - Type 'ctrl-c' then 'sudo raspi-config' to setup WiFi\033[0;0m\n")
+                sys.exit()
+                break
+            pass
+
+    ipadd = s.getsockname()[0]  # get IP Address
+    logger.info('Startup - Current RPI IP Address = ' + ipadd)
+
+    # Get Current Time Zone
+    currtzinfo = subprocess.run(['timedatectl', 'status'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    tztemp = currtzinfo.split('\n')
+    current_timezone = tztemp[3]
+
+    # Check to see if an newer version of the software is available, and update if user so chooses
+    # testupdate() # temp fix for server error. More to come
 
     # Get system info and display
     python_ver = ("Python Version = " + sys.version)
@@ -1810,7 +1886,7 @@ def setup():
 
     ## This code is obsolete, but left here for prosperity's sake.
     ##    if useip2ftp ==  1:
-    ##        exec(compile(open(".//ftp-v4.py", "rb").read(), ".//ftp-v4.py", 'exec'))  #Get latest ip's to display in editors
+    ##        exec(compile(open("/NeoSectional/ftp-v4.py", "rb").read(), "/NeoSectional/ftp-v4.py", 'exec'))  #Get latest ip's to display in editors
     ##        logger.info("Storing " + str(ipaddresses) + " on ftp server")
 
     copy()  # make backup of config file
@@ -1820,22 +1896,11 @@ def setup():
     get_led_map_info() # get airport location in lat lon and flight category
     readhmdata(heatmap_file)  # get Heat Map data
 
-    """
     if admin.use_scan_network == 1:
         print("One Moment - Scanning for Other LiveSectional Maps on Local Network")
         machines = scan_network.scan_network()
         print(machines) # Debug
-    """
 
     logger.info("IP Address = " + s.getsockname()[0])
     logger.info("Starting Flask Session")
-
-"""
-This code use to be in __main__. It needs to be run outside of main because with a uwsgi server, main never gets
-called
-"""
-setup()
-if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
-
-
