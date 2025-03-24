@@ -92,7 +92,9 @@ import random
 from log import logger
 import config                                   #User settings stored in file config.py, used by other scripts
 import admin
+import xmltodict
 
+PATH = "."
 
 #   git clone https://github.com/adafruit/Adafruit_Python_GPIO.git
 #   cd Adafruit_Python_GPIO
@@ -623,28 +625,53 @@ while True:
 
     #Build URL to submit to FAA with the proper airports from the airports file
     if metar_taf_mos != 2 and metar_taf_mos != 3:
-        for airportcode in airports:
+        station_ids = []
+        metars = []
+        tafs = []
+        for number, airportcode in enumerate(airports):
             if airportcode == "NULL" or airportcode == "LGND":
                 continue
-            url = url + airportcode + ","
-        url = url[:-1]                          #strip trailing comma from string
-        logger.debug(url)
+            station_ids.append(airportcode)
+            if len(station_ids) >= 200:
+                try:
+                    full_url = url + ",".join(station_ids)
+                    content = urllib.request.urlopen(full_url)
+                except Exception as e:
+                    logger.warning(f'Error:{e} getting FAA Data')
+                    logger.info(url)
+                    continue
+                station_ids = []
 
-        while True:                             #check internet availability and retry if necessary. Power outage, map may boot quicker than router.
+                data = xmltodict.parse(content.read())
+                metar_list = data.get('response').get('data').get('METAR')
+                if metar_list:
+                    metars.extend(metar_list)
+
+                taf_list = data.get('response').get('data').get('TAF')
+                if taf_list:
+                    tafs.extend(taf_list)
+
+        # Handle leftover:
+        if station_ids:
             try:
-                content = urllib.request.urlopen(url)
-                logger.info('Internet Available')
+                full_url = url + ",".join(station_ids)
+                content = urllib.request.urlopen(full_url)
+            except Exception as e:
+                logger.warning(f'Error:{e} getting FAA Data')
                 logger.info(url)
-                break
-            except:
-                logger.warning('FAA Data is Not Available')
-                logger.info(url)
-                time.sleep(delay_time)
-                pass
+                continue
 
-        root = ET.fromstring(content.read())    #Process XML data returned from FAA
+            data = xmltodict.parse(content.read())
+            metar_list = data.get('response').get('data').get('METAR')
+            if metar_list:
+                metars.extend(metar_list)
 
-    #MOS decode routine
+            taf_list = data.get('response').get('data').get('TAF')
+            if taf_list:
+                tafs.extend(taf_list)
+
+
+#MOS decode routine
     #MOS data is downloaded daily from; https://www.weather.gov/mdl/mos_gfsmos_mav to the local drive by crontab scheduling.
     #Then this routine reads through the entire file looking for those airports that are in the airports file. If airport is
     #found, the data needed to display the weather for the next 24 hours is captured into mos_dict, which is nested with
@@ -874,13 +901,8 @@ while True:
     #TAF decode routine. This routine will decode the TAF, pick the appropriate time frame to display.
     if metar_taf_mos == 0:                      #0 equals display TAF.
         #start of TAF decoding routine
-        for data in root.iter('data'):
-            num_results = data.attrib['num_results'] #get number of airports reporting TAFs to be used for diagnosis only
-            logger.debug("\nNum of Airport TAFs = " + num_results)
 
-        for taf in root.iter('TAF'):            #iterate through each airport's TAF
-            stationId = taf.find('station_id').text
-            logger.debug(stationId)
+        for taf in tafs:            #iterate through each airport's TAF
             logger.debug('Current+Offset Zulu - ' + current_zulu)
             taf_wx_string = ""
             taf_change_indicator = ""
@@ -888,27 +910,27 @@ while True:
             taf_wind_speed_kt = ""
             taf_wind_gust_kt = ""
 
-            for forecast in taf.findall('forecast'): #Now look at the forecasts for the airport
+            for forecast in taf.get('forecast'): #Now look at the forecasts for the airport
 
                 # Routine inspired by Nick Cirincione.
                 flightcategory = "VFR"          #intialize flight category
-                taf_time_from = forecast.find('fcst_time_from').text #get taf's from time
-                taf_time_to = forecast.find('fcst_time_to').text #get taf's to time
+                taf_time_from = forecast.get('fcst_time_from') #get taf's from time
+                taf_time_to = forecast.get('fcst_time_to') #get taf's to time
 
-                if forecast.find('wx_string') is not None:
-                    taf_wx_string = forecast.find('wx_string').text #get weather conditions
+                if forecast.get('wx_string') is not None:
+                    taf_wx_string = forecast.get('wx_string').text #get weather conditions
 
-                if forecast.find('change_indicator') is not None:
-                    taf_change_indicator = forecast.find('change_indicator').text #get change indicator
+                if forecast.get('change_indicator') is not None:
+                    taf_change_indicator = forecast.get('change_indicator') #get change indicator
 
-                if forecast.find('wind_dir_degrees') is not None:
-                    taf_wind_dir_degrees = forecast.find('wind_dir_degrees').text #get wind direction
+                if forecast.get('wind_dir_degrees') is not None:
+                    taf_wind_dir_degrees = forecast.get('wind_dir_degrees') #get wind direction
 
-                if forecast.find('wind_speed_kt') is not None:
-                    taf_wind_speed_kt = forecast.find('wind_speed_kt').text #get wind speed
+                if forecast.get('wind_speed_kt') is not None:
+                    taf_wind_speed_kt = forecast.get('wind_speed_kt') #get wind speed
 
-                if forecast.find('wind_gust_kt') is not None:
-                    taf_wind_gust_kt = forecast.find('wind_gust_kt').text #get wind gust speed
+                if forecast.get('wind_gust_kt'):
+                    taf_wind_gust_kt = forecast.get('wind_gust_kt') #get wind gust speed
 
                 if taf_time_from <= current_zulu <= taf_time_to: #test if current time plus offset falls within taf's timeframe
                     logger.debug('TAF FROM - ' + taf_time_from)
@@ -919,7 +941,7 @@ while True:
                     #There can be multiple layers of clouds in each taf, but they are always listed lowest AGL first.
                     #Check the lowest (first) layer and see if it's overcast, broken, or obscured. If it is, then compare to cloud bas$
                     #This algorithm basically sets the flight category based on the lowest OVC, BKN or OVX layer.
-                    for sky_condition in forecast.findall('sky_condition'): #for each sky_condition from the XML
+                    for sky_condition in forecast.get('sky_condition'): #for each sky_condition from the XML
                         sky_cvr = sky_condition.attrib['sky_cover'] #get the sky cover (BKN, OVC, SCT, etc)
                         logger.debug(sky_cvr)
 
@@ -929,7 +951,7 @@ while True:
                                 cld_base_ft_agl = sky_condition.attrib['cloud_base_ft_agl'] #get cloud base AGL from XML
                                 logger.debug(cld_base_ft_agl) #debug
                             except:
-                                cld_base_ft_agl = forecast.find('vert_vis_ft').text #get cloud base AGL from XML
+                                cld_base_ft_agl = forecast.get('vert_vis_ft') #get cloud base AGL from XML
 
 #                            cld_base_ft_agl = sky_condition.attrib['cloud_base_ft_agl'] #get cloud base AGL from XML
 #                            logger.debug(cld_base_ft_agl)
@@ -953,8 +975,8 @@ while True:
 
                     #visibilty can also set flight category. If the clouds haven't set the fltcat to LIFR. See if visibility will
                     if flightcategory != "LIFR": #if it's LIFR due to cloud layer, no reason to check any other things that can set fl$
-                        if forecast.find('visibility_statute_mi') is not None: #check XML if visibility value exists
-                            visibility_statute_mi = forecast.find('visibility_statute_mi').text   #get visibility number
+                        if forecast.get('visibility_statute_mi') is not None: #check XML if visibility value exists
+                            visibility_statute_mi = forecast.get('visibility_statute_mi')  #get visibility number
                             visibility_statute_mi = float(visibility_statute_mi.strip('+'))
                             print (visibility_statute_mi)
 
@@ -1036,40 +1058,40 @@ while True:
     elif metar_taf_mos == 1:                    #Decode METARs to display
         #grab the airport category, wind speed and various weather from the results given from FAA.
         #start of METAR decode routine if 'metar_taf' equals 1. Script will default to this routine without a rotary switch installed.
-        for metar in root.iter('METAR'):
-            stationId = metar.find('station_id').text
+        for metar in metars:
+            stationId = metar.get('station_id')
 
             #grab flight category from returned FAA data
-            if metar.find('flight_category') is None: #if category is blank, then bypass
+            if metar.get('flight_category') is None: #if category is blank, then bypass
                 flightcategory = "NONE"
             else:
-                flightcategory = metar.find('flight_category').text
+                flightcategory = metar.get('flight_category')
 
             #grab wind speeds from returned FAA data
-            if metar.find('wind_speed_kt') is None: #if wind speed is blank, then bypass
+            if metar.get('wind_speed_kt') is None: #if wind speed is blank, then bypass
                 windspeedkt = 0
             else:
-                windspeedkt = int(metar.find('wind_speed_kt').text)
+                windspeedkt = int(metar.get('wind_speed_kt'))
 
             #grab wind gust from returned FAA data - Lance Blank
-            if metar.find('wind_gust_kt') is None: #if wind speed is blank, then bypass
+            if metar.get('wind_gust_kt') is None: #if wind speed is blank, then bypass
                 windgustkt = 0
             else:
-                windgustkt = int(metar.find('wind_gust_kt').text)
+                windgustkt = int(metar.get('wind_gust_kt'))
 
             #grab wind direction from returned FAA data
-            if metar.find('wind_dir_degrees') is None: #if wind speed is blank, then bypass
+            if metar.get('wind_dir_degrees') is None: #if wind speed is blank, then bypass
                 winddirdegree = 0
-            elif metar.find('wind_dir_degrees').text == 'VRB':
+            elif metar.get('wind_dir_degrees')== 'VRB':
                 winddirdegree = 0
             else:
-                winddirdegree = int(metar.find('wind_dir_degrees').text)
+                winddirdegree = int(metar.get('wind_dir_degrees'))
 
             #grab Weather info from returned FAA data
-            if metar.find('wx_string') is None: #if weather string is blank, then bypass
+            if metar.get('wx_string') is None: #if weather string is blank, then bypass
                 wxstring = "NONE"
             else:
-                wxstring = metar.find('wx_string').text
+                wxstring = metar.get('wx_string')
 
             #Check for duplicate airport identifier and skip if found, otherwise store in dictionary. covers for dups in "airports" file
             if stationId in stationiddict:
