@@ -65,7 +65,8 @@ def oledcenter(txt, ch, font, wndir=0, dim=dimswitch, onoff = 0, pause = 0): #Ce
         ap, wndsp = txt.split('\n')
         txt = ap + '\n' + str(dir) + chr(176) + '@' + wndsp #'360@21kts' layout
 
-    w, h = draw.textsize(txt, font=font)        #get textsize of what is to be displayed
+    #w, h = draw.textsize(txt, font=font)        #get textsize of what is to be displayed
+    _, _, w, h = draw.textbbox((0, 0), txt, font=font)
     x = (x2 - x1 - w)/2 + x1                    #calculate center for text
     y = (y2 - y1 - h)/2 + y1 - offset
 
